@@ -67,7 +67,9 @@ import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.geom.GeneralPath;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -84,6 +86,7 @@ import java.util.TooManyListenersException;
 import java.util.Vector;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.imageio.ImageIO;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
@@ -216,6 +219,12 @@ public class WirelessLCDSystem implements ActionListener,
     
     // Buffer for the ADXL345
     private byte[] ADXL345 = new byte[6];
+    
+    // pane for vibrate curve
+    private JPanel curve = null;
+    
+    // pane for picture
+    private JPanel image = null;
 
     // save the topology
     private final TopologyTree topology = new TopologyTree();
@@ -240,19 +249,71 @@ public class WirelessLCDSystem implements ActionListener,
         JPanel topLevelPane = new JPanel(new BorderLayout());
 
         // repose the pane
-        JPanel layout = new JPanel(new BorderLayout());
-        layout.add(createLCDControlPane(), BorderLayout.PAGE_START);
-        layout.add(createMessagePane(), BorderLayout.PAGE_END);
-
+        JPanel layout1 = new JPanel(new BorderLayout());
+        layout1.add(createLCDControlPane(), BorderLayout.PAGE_START);
+        layout1.add(createMessagePane(), BorderLayout.PAGE_END);
+        // repose the pane
+        JPanel layout2 = new JPanel(new BorderLayout());
+        layout2.add(createPicturePane(), BorderLayout.PAGE_START);
+        layout2.add(createADXL345Pane(), BorderLayout.PAGE_END);
+        
         // add the lcd and the log pane
-        topLevelPane.add(layout, BorderLayout.LINE_START);
+        topLevelPane.add(layout1, BorderLayout.LINE_START);
 
         // add the topology pane
         topLevelPane.add(createTopologyPane(), BorderLayout.CENTER);
+        
+        // add the picture and adxl345 pane
+        topLevelPane.add(layout2, BorderLayout.LINE_END);
 
         return topLevelPane;
     }
 
+    private JPanel createPicturePane(){
+        // create a contaner
+        image = new ImagePane();
+        // size the panel
+        Dimension area = new Dimension(350, 270);
+        image.setPreferredSize(area);
+        // custom the background color
+        image.setBackground(new Color(223, 239, 239));
+        
+        // content
+        JPanel content = new JPanel();
+        content.add(image);
+        
+        // set a border for it
+        content.setBorder(
+                BorderFactory.createCompoundBorder(
+                        BorderFactory.createTitledBorder("OV7670 Image"),
+                        BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+        // return 
+        return content;
+    }
+    
+    private JPanel createADXL345Pane(){
+        // create adxl345 pane
+        curve = new CurvePane();
+        // custom the back ground
+        //curve.setBackground(new Color(97, 71, 222));
+        curve.setBackground(Color.white);
+        // set area
+        Dimension area = new Dimension(350, 200);
+        curve.setPreferredSize(area);
+        
+        JPanel content = new JPanel();
+        // add to the content
+        content.add(curve);
+        
+        // set a border for it
+        content.setBorder(
+                BorderFactory.createCompoundBorder(
+                        BorderFactory.createTitledBorder("ADXL345 Curve"),
+                        BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+        // returnt the pane
+        return content;
+    }
+    
     private JScrollPane createTopologyPane() {
         // Create instance of canvas
         canvas = new DrawPane();
@@ -283,7 +344,7 @@ public class WirelessLCDSystem implements ActionListener,
         // Create instance for the member message
         message = new JTextArea(5, 25);
         message.setEditable(false);
-        message.setBackground(Color.LIGHT_GRAY);
+        message.setBackground(new Color(223, 231, 189));
 
         // Create scroll pane container for the text area
         JScrollPane statusBar = new JScrollPane(message);
@@ -297,7 +358,7 @@ public class WirelessLCDSystem implements ActionListener,
                         BorderFactory.createEmptyBorder(5, 5, 5, 5)));
 
         // set the preferred size
-        statusBar.setPreferredSize(new Dimension(300, 200));
+        statusBar.setPreferredSize(new Dimension(300, 280));
 
         // return
         return statusBar;
@@ -1083,6 +1144,45 @@ public class WirelessLCDSystem implements ActionListener,
         }
     }
 
+    // draw the image 
+    class ImagePane extends JPanel{
+        
+        private BufferedImage handler = null;
+        
+        @Override
+        protected void paintComponent(Graphics g) {
+            // inherited from JPanel
+            super.paintComponent(g);
+            try {
+                // read the image
+                handler = ImageIO.read(new File(bitMapFile.toUri()));
+                // draw the image
+                g.drawImage(handler, 15, 15, null);
+
+            } catch (IOException ex) {
+                Logger.getLogger(WirelessLCDSystem.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
+        
+    }
+    
+    // Curve pane
+    class CurvePane extends JPanel{
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            // inherited from JPanel
+            super.paintComponent(g);
+            // just use the data int the ADXL345 to draw the curve
+            drawCurve(g);
+        }
+        
+        private void drawCurve(Graphics g){
+            
+        }// end method
+        
+    }// end class
+    
     // extend the JPanel
     class DrawPane extends JPanel {
 
