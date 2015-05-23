@@ -45,6 +45,7 @@
 package wirelesslcdsystem;
 
 import BitMap.BitMap;
+import VibrateTool.VibrateVisual;
 import gnu.io.CommPort;
 import gnu.io.CommPortIdentifier;
 import gnu.io.NoSuchPortException;
@@ -222,6 +223,7 @@ public class WirelessLCDSystem implements ActionListener,
     
     // pane for vibrate curve
     private JPanel curve = null;
+    private final VibrateVisual visualTool = new VibrateVisual();
     
     // pane for picture
     private JPanel image = null;
@@ -300,6 +302,9 @@ public class WirelessLCDSystem implements ActionListener,
         // set area
         Dimension area = new Dimension(350, 200);
         curve.setPreferredSize(area);
+        
+        // set the tool properties
+        visualTool.setArea(350, 200);
         
         JPanel content = new JPanel();
         // add to the content
@@ -951,6 +956,9 @@ public class WirelessLCDSystem implements ActionListener,
              // use bit map to do this
              BitMap createFile = new BitMap(imageWidth, imageHeight);
              createFile.createBitMapFile(hex, bmp);
+             
+             // when done call method to repaint the pane
+             image.repaint();
         }// end methods
         
     }// end class
@@ -1178,7 +1186,10 @@ public class WirelessLCDSystem implements ActionListener,
         }
         
         private void drawCurve(Graphics g){
-            
+            // set draw handler
+            visualTool.setG2((Graphics2D)g);
+            // use vibrate visual tool to draw this
+            visualTool.drawVisualWave();
         }// end method
         
     }// end class
