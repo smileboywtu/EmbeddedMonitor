@@ -49,6 +49,7 @@ public class VibrateVisual {
 
     // here just wite a test use constructor
     public VibrateVisual(){
+        // init the data first
         int len = storage.getCapacity();
         Random generator = new Random();
         DataNode test = null;
@@ -292,11 +293,9 @@ public class VibrateVisual {
     }
     
     // draw all the things
-    public void drawVisualWave(int[] data, int len){
+    public void drawVisualWave(int x, int y, int z){
         // update data
-        for(int i=0; i<len; i+=3){
-            addData(data[i], data[i+1], data[i+2]);
-        }
+        addData(x, y, z);
         
         // draw coordinator first
         drawCoordinator();

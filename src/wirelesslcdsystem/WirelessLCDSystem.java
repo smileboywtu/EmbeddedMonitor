@@ -83,7 +83,6 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.Random;
 import java.util.TooManyListenersException;
 import java.util.Vector;
 import java.util.logging.Level;
@@ -220,7 +219,7 @@ public class WirelessLCDSystem implements ActionListener,
     private ByteArrayOutputStream buffer = null;
     
     // Buffer for the ADXL345
-    private byte[] ADXL345 = new byte[6];
+    private final byte[] ADXL345 = new byte[6];
     
     // pane for vibrate curve
     private JPanel curve = null;
@@ -248,12 +247,15 @@ public class WirelessLCDSystem implements ActionListener,
     private final ArrayList<String> defaultAddrList = new ArrayList<>();
     
     public WirelessLCDSystem(){
-        int t = 0;
-        Random generator = new Random();
-        for(int i=0; i<6; i++){
-            t = generator.nextInt(50);
-            ADXL345[i] = (byte)t;
-        }
+        // only for test
+        // test ok
+//        Random generator = new Random();
+//        ADXL345[0] = (byte)generator.nextInt(60);
+//        ADXL345[1] = 0x00;
+//        ADXL345[2] = (byte)generator.nextInt(60);
+//        ADXL345[3] = 0x00;
+//        ADXL345[4] = (byte)generator.nextInt(60);
+//        ADXL345[5] = 0x00;
     }
 
     public JPanel createPane() {
@@ -1199,12 +1201,14 @@ public class WirelessLCDSystem implements ActionListener,
             // set draw handler
             visualTool.setG2((Graphics2D)g);
             // parse the data
-            int[] parseAdXL345Data = new int[3];
-            parseAdXL345Data[0] = BUILD_UINT32(ADXL345[0], ADXL345[1]);
-            parseAdXL345Data[1] = BUILD_UINT32(ADXL345[2], ADXL345[3]);
-            parseAdXL345Data[2] = BUILD_UINT32(ADXL345[4], ADXL345[5]);
+            int x = 0;
+            int y = 0;
+            int z = 0;
+            x = BUILD_UINT32(ADXL345[0], ADXL345[1]);
+            y = BUILD_UINT32(ADXL345[2], ADXL345[3]);
+            z = BUILD_UINT32(ADXL345[4], ADXL345[5]);
             // use vibrate visual tool to draw this
-            visualTool.drawVisualWave(parseAdXL345Data, 3);
+            visualTool.drawVisualWave(x, y, z);
         }// end method
         
     }// end class
