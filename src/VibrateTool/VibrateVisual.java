@@ -8,8 +8,8 @@ package VibrateTool;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.geom.GeneralPath;
-import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Random;
 
 /**
  *
@@ -27,7 +27,45 @@ public class VibrateVisual {
     private final Color xWaveColor = Color.green;
     private final Color yWaveColor = Color.blue;
     private final Color zWaveColor = Color.red;
+    
+    // ruler use
+    private int xStart = 0;
+    private int xEnd = 0;
+    private int yStart = 0;
+    private int yEnd = 0;
+    
+    private int xRulerStart = 0;
+    private int xRulerStop = 0;
+    private int yRulerStart = 0;
+    private int yRulerStop = 0;
+    
+    private int xIncreament = 0;
+    private int xTurns = 0;
+    private int yIncreament = 0;
+    private int yTurns = 0;
+    
+    private int xMax = 0;
+    private int yMax = 0;
 
+    // here just wite a test use constructor
+    public VibrateVisual(){
+        int len = storage.getCapacity();
+        Random generator = new Random();
+        DataNode test = null;
+        int x,y,z;
+        for(int i=0; i<len; i++){
+//            x = generator.nextInt(60);
+//            y = generator.nextInt(60);
+//            z = generator.nextInt(60);
+            x = 0;
+            y = 0;
+            z = 0;
+            test = new DataNode(x, y, z);
+            storage.push(test);
+            //System.out.println(" "+x+" "+y+" "+z);
+        }
+    }
+    
     // set g2
     public void setG2(Graphics2D g2) {
         this.g2 = g2;
@@ -44,6 +82,20 @@ public class VibrateVisual {
     public void setArea(int width, int height){
         setCanvasWidth(width);
         setCanvasHeight(height);
+        // set ruler properties
+        setRulerProperties();
+    }
+    
+    private void setRulerProperties(){
+        // set start and end
+        xStart = 20;
+        xEnd = canvasWidth-35;
+        yStart = canvasHeight-10;
+        yEnd = 10;
+        
+        // set others
+        // in the add ruler method
+        // the custom may define this
     }
     
     public void addData(int x, int y, int z){
@@ -79,10 +131,10 @@ public class VibrateVisual {
         g2.setPaint(new Color(39, 136, 157));
         
         // draw x with rulers
-        drawArrayLine(20, canvasHeight-20, canvasWidth-35, canvasHeight-20, g2);
+        drawArrayLine(xStart, canvasHeight-20, xEnd, canvasHeight-20, g2);
         addRulers(false, 40, canvasWidth-35-10, canvasHeight-20, 1, 13);
         // draw y with rulers
-        drawArrayLine(40, canvasHeight-10, 40, 10, g2);
+        drawArrayLine(40, yStart, 40, yEnd, g2);
         addRulers(true, canvasHeight-20, 10+10, 40, 10, 60);
                  
         // draw axis label
@@ -123,32 +175,38 @@ public class VibrateVisual {
         
         // vertical or horizen
         if(vertical){
+          // set ruler properties
+          yTurns = t;
+          yMax = increamentValue*t;
+          yIncreament = increamentLength;
+          yRulerStart = start;
+          yRulerStop = end;
           // the rely is the x axis
-          for(int i=0; i<t; i++){
+          for(int i=0; i<yTurns; i++){
               text = increamentValue*i;
-              length = -increamentLength*i;
-              if(0 == i){
-                  // only draw text
-                  g2.drawString(""+text, rely-20, start+length-5);
-              }else{
-                  // draw text
-                  g2.drawString(""+text, rely-20, start+length-5);
-                  // draw mark
-                  g2.drawLine(rely, start+length, rely-3, start+length);
+              length = -yIncreament*i;
+              // draw text
+              g2.drawString("" + text, rely - 20, start + length - 5);
+              // draw mark
+              if (0 != i) {
+                  g2.drawLine(rely, start + length, rely - 3, start + length);
               }
           }  
         }else{
+            // set ruler properties
+            xTurns = t;
+            xMax = increamentValue*t;
+            xIncreament = increamentLength;
+            xRulerStart = start;
+            xRulerStop = end;
             // the rely is the y axis
-            for (int i=0; i<t; i++) {
+            for (int i=0; i<xTurns; i++) {
                 text = increamentValue * i;
-                length = increamentLength * i;
-                if (0 == i) {
-                    // only draw text
-                    g2.drawString("" + text, start+length-10, rely+15);
-                } else {
-                    // draw text
-                    g2.drawString("" + text, start+length-10, rely+15);
-                    // draw mark
+                length = xIncreament * i;
+                // draw text
+                g2.drawString("" + text, start + length - 10, rely + 15);
+                // draw mark
+                if (0 != i) {
                     g2.drawLine(start + length, rely, start + length, rely + 3);
                 }
             }
@@ -156,11 +214,90 @@ public class VibrateVisual {
     }
     // draw wave of x, y, z
     private void drawXYZWave(){
+        // the length of square
+        int deta = 4;
+        // time line
+        int time = 0;
+        // capacity
+        int len = storage.getCapacity();
+        // preDataNode
+        int pX = 0;
+        int[] pY = new int[3];
+        // current node
+        DataNode cNode = null;
         
+        int tData = 0;
+        
+        int cX = 0;
+        int[] cY = new int[3];
+        
+        for(int i=0; i<len; i++){
+            // read a data
+            cNode = storage.read(i);
+            // calculate x coordinator
+            cX = xRulerStart+xIncreament*i-deta/2;
+            // do not link just draw a point
+            // use a squre is more good
+            // use time as x
+            // and data with y
+            g2.setPaint(new Color(156, 77, 193));
+            // filter the data
+            cNode.x = cNode.x<=yMax? cNode.x : yMax;
+            cNode.y = cNode.y<=yMax? cNode.y : yMax;
+            cNode.z = cNode.z<=yMax? cNode.z : yMax;
+            // first draw x axis
+            tData = cNode.x;
+            // use tData calculate y
+            cY[0] = calculateYAxis(tData, deta);
+            g2.fillRect(cX, cY[0], deta, deta);
+            tData = cNode.y;
+            // draw y axis
+            cY[1] = calculateYAxis(tData, deta);
+            g2.fillRect(cX, cY[1], deta, deta);
+            tData = cNode.z;
+            // draw z axis
+            cY[2] = calculateYAxis(tData, deta);
+            g2.fillRect(cX, cY[2], deta, deta);
+            
+            // draw link
+            if(0 != i){
+                int inc = deta/2;
+                // draw x link
+                g2.setPaint(xWaveColor);
+                g2.drawLine(pX+inc, pY[0]+inc, cX+inc, cY[0]+inc);
+                // draw y link
+                g2.setPaint(yWaveColor);
+                g2.drawLine(pX+inc, pY[1]+inc, cX+inc, cY[1]+inc);
+                // draw z link
+                g2.setPaint(zWaveColor);
+                g2.drawLine(pX+inc, pY[2]+inc, cX+inc, cY[2]+inc);
+            }
+            
+            // update pre node 
+            pX = cX;
+            System.arraycopy(cY, 0, pY, 0, 3);
+            // update time
+            time++;
+        }
+    }
+    
+    private int calculateYAxis(int t, int deta){
+        int y = 0;
+        y = yRulerStart-
+                ((t/(yMax/yTurns))*yIncreament + 
+                (t%(yMax/yTurns)*yMax)/Math.abs(yRulerStart-yRulerStop));    
+        y -= deta/2;
+        // return 
+        return y;
     }
     
     // draw all the things
-    public void drawVisualWave(){
+    public void drawVisualWave(int[] data, int len){
+        // update data
+        for(int i=0; i<len; i+=3){
+            addData(data[i], data[i+1], data[i+2]);
+        }
+        
         // draw coordinator first
         drawCoordinator();
         
@@ -232,13 +369,20 @@ public class VibrateVisual {
         return mathstr;
     }
     
-    // test the function of fifo
+    // test the function of FIFO
+    // test ok
     public static void main(String[] args){
         // test FIFO
-        FIFO test = new FIFO();
-        test.push(new DataNode(2,3,4));
-        DataNode temp = test.read();
-        System.out.println(temp.x+" "+temp.y+" "+temp.z);
+//        FIFO test = new FIFO();
+//        test.push(new DataNode(2,3,4));
+//        test.push(new DataNode(2,3,4));
+//        test.push(new DataNode(2,3,5));
+//        DataNode temp = test.read(3);
+//        System.out.println(temp.x+" "+temp.y+" "+temp.z);
+        // test random integer
+        Random test = new Random();
+        for(int i=0; i<10; i++)
+        System.out.println(test.nextInt(60));
     }
 }
 
@@ -250,7 +394,9 @@ class DataNode{
 
     // default
     public DataNode(){
-        
+        this.x = 1;
+        this.y = 2;
+        this.z = 3;
     }
     // use for specific
     public DataNode(int x, int y, int z) {
@@ -258,15 +404,13 @@ class DataNode{
         this.y = y;
         this.z = z;
     }
-    
-    
+
 }
 
 // data structure to save the data
 class FIFO{
     // capacity
-    private int capacity = 12;
-    private int readPointer = 0;
+    private int capacity = 13;
     private int bufferPointer = 0;
     private ArrayList<DataNode> buffer = new ArrayList<>();
 
@@ -274,11 +418,22 @@ class FIFO{
         // record first
         this.capacity = capacity;
     }
+
+    public int getCapacity() {
+        return capacity;
+    }
     
     public void push(DataNode e){
         // shift left
-        if(bufferPointer>=1)
-            buffer = (ArrayList<DataNode>) buffer.subList(1, bufferPointer-1);
+        if(bufferPointer>=capacity){
+            ArrayList<DataNode> buffer_ = new ArrayList<>();
+            // copy data first
+            for(int i=0; i<capacity-1; i++){
+                buffer_.add(buffer.get(i));
+            }
+            // redirection
+            buffer = buffer_;
+        }
         // push data
         buffer.add(e);
         // update buffer pointer
@@ -292,14 +447,11 @@ class FIFO{
     }
     
     // this should auto shift from head to tail
-    public DataNode read(){
-        // reset the pointer
-        if(capacity == readPointer)
-            readPointer = 0;
-        
+    public DataNode read(int index){
+
         // return 
-        if((readPointer < bufferPointer) && (bufferPointer > 0)){
-            return buffer.get(readPointer++);
+        if((index < bufferPointer) && (bufferPointer > 0)){
+            return buffer.get(index);
         }
         else{
             return new DataNode(0,0,0);
