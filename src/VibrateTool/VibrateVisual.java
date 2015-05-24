@@ -379,9 +379,15 @@ public class VibrateVisual {
 //        DataNode temp = test.read(3);
 //        System.out.println(temp.x+" "+temp.y+" "+temp.z);
         // test random integer
-        Random test = new Random();
-        for(int i=0; i<10; i++)
-        System.out.println(test.nextInt(60));
+//        Random test = new Random();
+//        for(int i=0; i<10; i++)
+//        System.out.println(test.nextInt(60));
+        byte a =(byte)0xfd;
+        int b = 0;
+        if(a < 0){
+            b = (a&0x7F)|(1<<7);
+        }
+        System.out.println(b);
     }
 }
 

@@ -192,7 +192,7 @@ public class WirelessLCDSystem implements ActionListener,
     private int length = 0;
     private int recvLen = 0;
     private byte[] incomingFrameBuffer = null;
-    private int state = (int)0xFE;
+    private int state = 1;
 
     // files to read and write
     private int counter = 0;
@@ -595,8 +595,8 @@ public class WirelessLCDSystem implements ActionListener,
                 serialPort.addEventListener(this);
                 // use state machine here
                 // so do not use the interrupt now
-                serialPort.notifyOnDataAvailable(true);
-                
+                // first time must open this notify
+                serialPort.notifyOnDataAvailable(true); 
                 // set params
                 serialPort.setSerialPortParams(
                         Integer.parseInt(baudrate),
@@ -612,6 +612,7 @@ public class WirelessLCDSystem implements ActionListener,
                 
                 // initialize the read thread here
                 // do not need initialize the thread here
+                // first time do not initialize this thread
                 //serialReadThread = new Thread(new SerialReader(serialIn));
                 
             } else {
@@ -657,9 +658,29 @@ public class WirelessLCDSystem implements ActionListener,
 
     private int BUILD_UINT32(byte low, byte high) {
         int x = 0;
-        x |= high;
+        int a = 0;
+        int b = 0;
+        // filter the data
+        if(low < 0){
+            a = ((low&0x7F)|(1<<7));
+        }
+        if(high < 0){
+            b = (high&0x7F)|(1<<7);
+        }
+        // write high byte
+        if(0 != b){
+            x |= b;
+        }else{
+            x |= high;
+        }
+        // shift left
         x <<= 8;
-        x |= low;
+        // write low byte
+        if(0 != a){
+            x |= a;
+        }else{
+            x |= low;
+        }
         // return
         return x;
     }
@@ -691,7 +712,7 @@ public class WirelessLCDSystem implements ActionListener,
         private final int CAMERA_START_CMD = 7;
         private final int CAMERA_DATA_CMD = 8;
         private final int VIBRATE_DATA_CMD = 9;
-        private final int COORDINATOR_ACK_CMD = 0;
+        private final int COORDINATOR_ACK_CMD = 0xFFFF;
         
         // params
         private final int SOF_STATE = 1;
@@ -791,7 +812,7 @@ public class WirelessLCDSystem implements ActionListener,
                         case FCS_STATE:
                             fcs = ch;
                             // calculate fcs and go forther
-                            if(0 == (calcuFCS(incomingFrameBuffer, length+5)^ch)){
+                            if(ch == (calculateFCS(incomingFrameBuffer, length+5))){
                                 // check ok but with different cmd
                                 pendingIncomingFrame(incomingFrameBuffer, true);
                             }else{
@@ -800,6 +821,8 @@ public class WirelessLCDSystem implements ActionListener,
                             }
                             // here you should free the data
                             // whereever the data is good or demaged
+                            // reset the step
+                            state = SOF_STATE;
                             incomingFrameBuffer = null;
                         break;
                     }// end switch
@@ -810,7 +833,18 @@ public class WirelessLCDSystem implements ActionListener,
             } catch (IOException ex) {
                 Logger.getLogger(WirelessLCDSystem.class.getName()).log(Level.SEVERE, null, ex);
             }
+            
         }// end run
+        
+        // calculate fcd
+        private byte calculateFCS(byte[] val, int len) {
+            byte xorResult = 0x00;
+            // ignore the sof bit
+            for(int i=0; i<len; i++){
+                xorResult ^= (byte) val[i];
+            }
+            return xorResult;
+        }
         
         // deal with the frame coming in
         private void pendingIncomingFrame(byte[] data, boolean flag) throws FileNotFoundException, IOException{
@@ -959,7 +993,7 @@ public class WirelessLCDSystem implements ActionListener,
             }// end switch
             
             // update byte counter
-            rxCounter += (int)data[0]+2;
+            rxCounter += (int)data[0]+7;
             // update message
             message.append("You have received: " + rxCounter + "\n");
         }// end method   
@@ -982,7 +1016,7 @@ public class WirelessLCDSystem implements ActionListener,
             // avoid the high frequency of the notifying
             // just check the read thread first 
             // and then choose to restart or ignore the notity
-            if(serialReadThread.isAlive()){
+            if((null != serialReadThread) && serialReadThread.isAlive()){
                 // do nothing here
                 // or you can close the notify here
                 // and open when the thread is done
@@ -1048,6 +1082,7 @@ public class WirelessLCDSystem implements ActionListener,
         }// end if
     }
 
+    // process incoming message
     private void ProcessIncomingMessage(byte[] pData, int preOffSet) {
 
         // deal with the cluster
@@ -1114,6 +1149,7 @@ public class WirelessLCDSystem implements ActionListener,
                 try {
                     startRS232Com();
                     // send start request to coordinator
+                    // here is the first place to send the data
                     serialOut.write(START_REQ, 0, START_REQ.length);
 
                     // disable the start button
