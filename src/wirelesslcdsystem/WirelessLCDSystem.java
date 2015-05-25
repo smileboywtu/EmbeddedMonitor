@@ -101,6 +101,8 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SwingWorker;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 
 /**
  *
@@ -363,7 +365,18 @@ public class WirelessLCDSystem implements ActionListener,
         message = new JTextArea(5, 25);
         message.setEditable(false);
         message.setBackground(new Color(223, 231, 189));
-
+        message.getDocument().addDocumentListener(new DocumentListener(){
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+               message.setCaretPosition(message.getDocument().getLength()); 
+            }
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+            }
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+            }
+        });
         // Create scroll pane container for the text area
         JScrollPane statusBar = new JScrollPane(message);
         statusBar.setAutoscrolls(true);
@@ -572,7 +585,6 @@ public class WirelessLCDSystem implements ActionListener,
         //System.out.println("You hava send: " + txCounter);
         message.append("You hava send: " + txCounter);
         message.append("\n");
-
     }
 
     private void startRS232Com() throws NoSuchPortException,
@@ -630,6 +642,7 @@ public class WirelessLCDSystem implements ActionListener,
     }
 
     private void stopRS232Com() throws InterruptedException, IOException {
+        
         // interrupt the thread first
         serialReadThread.interrupt();
         
@@ -746,102 +759,102 @@ public class WirelessLCDSystem implements ActionListener,
         @Override
         public void run() {
             try {
-                while(true){
-                int ch = 0;
-                // read and dispath the event
-                while(serialReader.available()>0){
+                while (true) {
+                    int ch = 0;
+                    // read and dispath the event
+                    while (serialReader.available() > 0) {
                     // here we use state machine to read the data
-                    // first to read a data
-                    ch = serialReader.read();
-                    // check state
-                    switch(state){
-                        case SOF_STATE:
-                            if(SOF_VALUE == ch){
-                                // step forward
-                                state = LEN_STATE;
-                            }
-                        break;
-                        // check the length
-                        case LEN_STATE:
-                            // get the data
-                            incomingFrameBuffer = new byte[ch+5];
-                            // record data, this used for the data check and save
-                            length = ch;
-                            // reset the receive data length counter
-                            recvLen = 0;
+                        // first to read a data
+                        ch = serialReader.read();
+                        // check state
+                        switch (state) {
+                            case SOF_STATE:
+                                if (SOF_VALUE == ch) {
+                                    // step forward
+                                    state = LEN_STATE;
+                                }
+                                break;
+                            // check the length
+                            case LEN_STATE:
+                                // get the data
+                                incomingFrameBuffer = new byte[ch + 5];
+                                // record data, this used for the data check and save
+                                length = ch;
+                                // reset the receive data length counter
+                                recvLen = 0;
                             // this is safe to convert, cause ch is between 0 to 255
-                            // here the ch is much less than 128, if acquired correctly
-                            incomingFrameBuffer[0] = (byte)ch; 
-                            // step to next
-                            state = CMD1_STATE;
-                        break;   
-                        case CMD1_STATE:
+                                // here the ch is much less than 128, if acquired correctly
+                                incomingFrameBuffer[0] = (byte) ch;
+                                // step to next
+                                state = CMD1_STATE;
+                                break;
+                            case CMD1_STATE:
                             // save data and to next state
-                            // safe to convert
-                            incomingFrameBuffer[1] = (byte)ch;
-                            state = CMD2_STATE;
-                        break;
-                        case CMD2_STATE:
+                                // safe to convert
+                                incomingFrameBuffer[1] = (byte) ch;
+                                state = CMD2_STATE;
+                                break;
+                            case CMD2_STATE:
                             // safe to convert 
-                            // the ch here must be 0x00
-                            incomingFrameBuffer[2] = (byte)ch;
-                            state = DST1_STATE;
-                        break;
-                        case DST1_STATE:
-                            incomingFrameBuffer[3] = (byte)ch;
-                            state = DST2_STATE;
-                        break;
-                        case DST2_STATE:
-                            incomingFrameBuffer[4] = (byte)ch;
-                            if(0 == length){
+                                // the ch here must be 0x00
+                                incomingFrameBuffer[2] = (byte) ch;
+                                state = DST1_STATE;
+                                break;
+                            case DST1_STATE:
+                                incomingFrameBuffer[3] = (byte) ch;
+                                state = DST2_STATE;
+                                break;
+                            case DST2_STATE:
+                                incomingFrameBuffer[4] = (byte) ch;
+                                if (0 == length) {
                                 // just go fcs state
-                                // cause there is no data needed to receive
-                                state = FCS_STATE;
-                            }else{
-                                state = DATA_STATE;
-                            }
-                        break;
-                        case DATA_STATE:
-                            // record the current one
-                            incomingFrameBuffer[5+recvLen++] = (byte)ch;
-                            // read more if enough
-                            int available = serialReader.available();
-                            // read part or read all data
-                            if((length-recvLen) <= available){
-                                // read all data
-                                serialReader.read(incomingFrameBuffer, 5+recvLen, length-recvLen);
-                                // step to the fcs state
-                                state = FCS_STATE;
-                            }else{
+                                    // cause there is no data needed to receive
+                                    state = FCS_STATE;
+                                } else {
+                                    state = DATA_STATE;
+                                }
+                                break;
+                            case DATA_STATE:
+                                // record the current one
+                                incomingFrameBuffer[5 + recvLen++] = (byte) ch;
+                                // read more if enough
+                                int available = serialReader.available();
+                                // read part or read all data
+                                if ((length - recvLen) <= available) {
+                                    // read all data
+                                    serialReader.read(incomingFrameBuffer, 5 + recvLen, length - recvLen);
+                                    // step to the fcs state
+                                    state = FCS_STATE;
+                                } else {
                                 // no enough data to read all
-                                // just read part and wait another turn to read
-                                serialReader.read(incomingFrameBuffer, 5+recvLen, available);
-                                // set the current data counter
-                                recvLen += available;
-                            }
-                        break;
-                        case FCS_STATE:
-                            fcs = ch;
-                            // calculate fcs and go forther
-                            if(fcs == (calculateFCS(incomingFrameBuffer, length+5))){
-                                // check ok but with different cmd
-                                pendingIncomingFrame(incomingFrameBuffer, true);
-                            }else{
-                                // bad frame
-                                pendingIncomingFrame(incomingFrameBuffer, false);
-                            }
+                                    // just read part and wait another turn to read
+                                    serialReader.read(incomingFrameBuffer, 5 + recvLen, available);
+                                    // set the current data counter
+                                    recvLen += available;
+                                }
+                                break;
+                            case FCS_STATE:
+                                fcs = ch;
+                                // calculate fcs and go forther
+                                if (fcs == (calculateFCS(incomingFrameBuffer, length + 5))) {
+                                    // check ok but with different cmd
+                                    pendingIncomingFrame(incomingFrameBuffer, true);
+                                } else {
+                                    // bad frame
+                                    pendingIncomingFrame(incomingFrameBuffer, false);
+                                }
                             // here you should free the data
-                            // whereever the data is good or demaged
-                            // reset the step
-                            state = SOF_STATE;
-                            incomingFrameBuffer = null;
-                        break;
-                    }// end switch
-                }// end while
-                
-                // open the notify
-                // serialPort.notifyOnDataAvailable(true);
-                Thread.sleep(1);
+                                // whereever the data is good or demaged
+                                // reset the step
+                                state = SOF_STATE;
+                                incomingFrameBuffer = null;
+                                break;
+                        }// end switch
+                    }// end while
+
+                    // open the notify
+                    // serialPort.notifyOnDataAvailable(true);
+                    Thread.sleep(1);
                 }
             } catch (IOException | InterruptedException ex) {
                 Logger.getLogger(WirelessLCDSystem.class.getName()).log(Level.SEVERE, null, ex);
