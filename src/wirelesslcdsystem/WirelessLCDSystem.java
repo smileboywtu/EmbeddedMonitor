@@ -69,6 +69,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.geom.GeneralPath;
 import java.awt.image.BufferedImage;
+import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -196,7 +197,7 @@ public class WirelessLCDSystem implements ActionListener,
 
     // files to read and write
     private int counter = 0;
-    private OutputStream fileWriter = null;
+    private BufferedWriter fileWriter = null;
     private int tempFilePointer = 1;    // this means use buffer 1
     private final Path colorHex1 = Paths.get("./src/image/colorHex1.tmp");
     private final Path colorHex2 = Paths.get("./src/image/colorHex2.tmp");
@@ -592,11 +593,15 @@ public class WirelessLCDSystem implements ActionListener,
             if (comPort instanceof SerialPort) {
                 serialPort = (SerialPort) comPort;
                 // set the notify on data available
-                serialPort.addEventListener(this);
+                
+                // serialPort.addEventListener(this);
+                
                 // use state machine here
                 // so do not use the interrupt now
                 // first time must open this notify
-                serialPort.notifyOnDataAvailable(true); 
+                
+                //serialPort.notifyOnDataAvailable(true); 
+                
                 // set params
                 serialPort.setSerialPortParams(
                         Integer.parseInt(baudrate),
@@ -613,7 +618,9 @@ public class WirelessLCDSystem implements ActionListener,
                 // initialize the read thread here
                 // do not need initialize the thread here
                 // first time do not initialize this thread
-                //serialReadThread = new Thread(new SerialReader(serialIn));
+                serialReadThread = new Thread(new SerialReader(serialIn));
+                // start the thread
+                serialReadThread.start();
                 
             } else {
                 System.out.println(
@@ -623,6 +630,9 @@ public class WirelessLCDSystem implements ActionListener,
     }
 
     private void stopRS232Com() throws InterruptedException, IOException {
+        // interrupt the thread first
+        serialReadThread.interrupt();
+        
         // close stream first
         serialIn.close();
         serialOut.close();
@@ -736,6 +746,7 @@ public class WirelessLCDSystem implements ActionListener,
         @Override
         public void run() {
             try {
+                while(true){
                 int ch = 0;
                 // read and dispath the event
                 while(serialReader.available()>0){
@@ -812,7 +823,7 @@ public class WirelessLCDSystem implements ActionListener,
                         case FCS_STATE:
                             fcs = ch;
                             // calculate fcs and go forther
-                            if(ch == (calculateFCS(incomingFrameBuffer, length+5))){
+                            if(fcs == (calculateFCS(incomingFrameBuffer, length+5))){
                                 // check ok but with different cmd
                                 pendingIncomingFrame(incomingFrameBuffer, true);
                             }else{
@@ -829,23 +840,38 @@ public class WirelessLCDSystem implements ActionListener,
                 }// end while
                 
                 // open the notify
-                serialPort.notifyOnDataAvailable(true);
-            } catch (IOException ex) {
+                // serialPort.notifyOnDataAvailable(true);
+                Thread.sleep(1);
+                }
+            } catch (IOException | InterruptedException ex) {
                 Logger.getLogger(WirelessLCDSystem.class.getName()).log(Level.SEVERE, null, ex);
+                // just return
             }
             
         }// end run
         
         // calculate fcd
-        private byte calculateFCS(byte[] val, int len) {
-            byte xorResult = 0x00;
+        private int calculateFCS(byte[] val, int len) {
+            int xorResult = 0x00;
+            int cur = 0;
             // ignore the sof bit
             for(int i=0; i<len; i++){
-                xorResult ^= (byte) val[i];
+                cur = (val[i] >= 0) ? val[i] : ((val[i]&0x7F)|(1<<7));
+                xorResult ^= cur;
             }
             return xorResult;
         }
         
+        // get the hex string to write to the file
+         private String toHexString(byte[] pre, int offset, int len) {
+            String result = "";
+            for (int i = 0; i < len; i++) {
+                result += (Integer.toString((pre[i+offset] & 0xff) + 0x100, 16)).toUpperCase().substring(1)
+                        + " ";
+            }
+            return result;
+        }
+         
         // deal with the frame coming in
         private void pendingIncomingFrame(byte[] data, boolean flag) throws FileNotFoundException, IOException{
             // get the command
@@ -860,7 +886,7 @@ public class WirelessLCDSystem implements ActionListener,
                     if(flag){
                         // update the topology
                         // update the lcd address list
-                        ProcessIncomingMessage(data, 0);
+                        ProcessIncomingMessage(data);
 
                         // update message
                         message.append("new node add to the network\n");
@@ -873,13 +899,11 @@ public class WirelessLCDSystem implements ActionListener,
                         // open the file and delete all data
                         // two temp file buffer
                         if(1 == tempFilePointer){
-                            fileWriter = Files.newOutputStream(colorHex1,
-                                    StandardOpenOption.APPEND,
+                            fileWriter = Files.newBufferedWriter(colorHex1,
                                     StandardOpenOption.CREATE_NEW,
                                     StandardOpenOption.TRUNCATE_EXISTING);
                         }else{
-                            fileWriter = Files.newOutputStream(colorHex2,
-                                    StandardOpenOption.APPEND,
+                            fileWriter = Files.newBufferedWriter(colorHex2,
                                     StandardOpenOption.CREATE_NEW,
                                     StandardOpenOption.TRUNCATE_EXISTING);
                         }
@@ -900,10 +924,15 @@ public class WirelessLCDSystem implements ActionListener,
                        if(colorTotalBytes != counter){
                            // the content start at pointer 5
                            // the length of the content saved in data[0]
-                           fileWriter.write(data, 5, data[0]);
+                           // the first data of the data content is sequence 
+                           // should be ignore
+                           
+                           //fileWriter.write(Arrays.toString(data), 6, data[0]-1);
+
+                           //fileWriter.write(data, 6, data[0]-1);
                            // update the counter
                            // data[0] must be a number between 0 ~ 255
-                           counter += (int)data[0];
+                           counter += (int)data[0]-1;
                        }
                        else{
                            // close the hex file writer
@@ -989,6 +1018,7 @@ public class WirelessLCDSystem implements ActionListener,
                     }
                 break;
                 default:
+                    System.out.println("error package...");
                 break;
             }// end switch
             
@@ -1032,58 +1062,15 @@ public class WirelessLCDSystem implements ActionListener,
                 // so just use run to make it run again
                 //srialReadThread.start();
                 // you can never restart a thread again
-                
                 serialReadThread = new Thread(new SerialReader(serialIn)); 
                 // start it
                 serialReadThread.start();
             }
-            /*try {
-                // receive two kind of data frastructure,
-                // so just make the thing easier
-                int len = serialIn.available();
-                byte[] MessageBuffer = new byte[len];
-                // read data out
-                serialIn.read(MessageBuffer, 0, len);
-                // update Counter
-                rxCounter += len;
-
-                // size > 7 ACK + Topology
-                if (len <= 7) {     // ACK
-                    if (true == Arrays.equals(ACK, MessageBuffer)) {
-                        // update message
-                        message.append("Coordinator ACK\n");
-                    }
-                } else if( len <= 11 ){ // TOPOLOGY
-                    // topology send by other nodes
-                    ProcessIncomingMessage(MessageBuffer, 0);
-                }else if( len > 11 ){   // ACK + TOPOLOGY
-                    // enable button
-                    start.setEnabled(false);
-                    send.setEnabled(true);
-                    stop.setEnabled(true);
-
-                    // list enable
-                    addrList.setEnabled(true);
-                    comList.setEditable(false);
-                    baudrateList.setEditable(false);
-
-                    // update message
-                    message.append("Coordinator Start\n");
-
-                    // get out of the first 7 byte
-                    ProcessIncomingMessage(MessageBuffer, 7);
-                }
-                // update message
-                message.append("You have received: " + rxCounter + "\n");
-            } catch (IOException ex) {
-                Logger.getLogger(WirelessLCDSystem.class.getName()).log(Level.SEVERE, null, ex);
-            }
-            */
         }// end if
     }
 
     // process incoming message
-    private void ProcessIncomingMessage(byte[] pData, int preOffSet) {
+    private void ProcessIncomingMessage(byte[] pData) {
 
         // deal with the cluster
         String srcAddr = "";
@@ -1092,16 +1079,16 @@ public class WirelessLCDSystem implements ActionListener,
         int deviceCMD = 0;
 
         // build source address
-        srcAddr += (Integer.toString((pData[preOffSet+5] & 0xFF) + 0x100, 16)).toUpperCase().substring(1);
-        srcAddr += (Integer.toString((pData[preOffSet+4] & 0xFF) + 0x100, 16)).toUpperCase().substring(1);
+        srcAddr += (Integer.toString((pData[+4] & 0xFF) + 0x100, 16)).toUpperCase().substring(1);
+        srcAddr += (Integer.toString((pData[+3] & 0xFF) + 0x100, 16)).toUpperCase().substring(1);
         srcAddr = "0x" + srcAddr;
 
         // build device 
-        deviceCMD = BUILD_UINT32(pData[preOffSet+6], pData[preOffSet+7]);
+        deviceCMD = BUILD_UINT32(pData[+5], pData[+6]);
 
         // huild parent addr
-        parentAddr += (Integer.toString((pData[preOffSet+9] & 0xFF) + 0x100, 16)).toUpperCase().substring(1);
-        parentAddr += (Integer.toString((pData[preOffSet+8] & 0xFF) + 0x100, 16)).toUpperCase().substring(1);
+        parentAddr += (Integer.toString((pData[+8] & 0xFF) + 0x100, 16)).toUpperCase().substring(1);
+        parentAddr += (Integer.toString((pData[+7] & 0xFF) + 0x100, 16)).toUpperCase().substring(1);
         parentAddr = "0x" + parentAddr;
 
         // use the cmd get the device name

@@ -8,8 +8,16 @@ package VibrateTool;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.geom.GeneralPath;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.Writer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Random;
+import java.util.Scanner;
 
 /**
  *
@@ -370,7 +378,7 @@ public class VibrateVisual {
     
     // test the function of FIFO
     // test ok
-    public static void main(String[] args){
+    public static void main(String[] args) throws IOException{
         // test FIFO
 //        FIFO test = new FIFO();
 //        test.push(new DataNode(2,3,4));
@@ -382,12 +390,29 @@ public class VibrateVisual {
 //        Random test = new Random();
 //        for(int i=0; i<10; i++)
 //        System.out.println(test.nextInt(60));
-        byte a =(byte)0xfd;
-        int b = 0;
-        if(a < 0){
-            b = (a&0x7F)|(1<<7);
-        }
-        System.out.println(b);
+        // test memory
+//        byte a =(byte)0xfd;
+//        int b = 0;
+//        if(a < 0){
+//            b = (a&0x7F)|(1<<7);
+//        }
+//        System.out.println(b);
+        // test toString method
+        byte[] test = new byte[3];
+        test[0] = (byte)0x00;
+        test[1] = (byte)0x01;
+        test[2] = (byte)0x02;
+        //File f = new File("./src/cc.txt");
+//        FileWriter Writer= new FileWriter(new File("./src/cc.txt"));
+//        BufferedWriter out = new BufferedWriter(Writer);
+//        out.write(Arrays.toString(test));
+//        out.flush();
+//        out.close();
+        
+        FileReader reader = new FileReader(new File("./src/cc.txt"));
+        Scanner in = new Scanner(reader);
+        System.out.println(in.nextInt());
+        System.out.println(in.nextInt());
     }
 }
 
