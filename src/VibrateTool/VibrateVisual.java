@@ -8,14 +8,10 @@ package VibrateTool;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.geom.GeneralPath;
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.Writer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Random;
 import java.util.Scanner;
 
@@ -458,7 +454,7 @@ class FIFO{
         if(bufferPointer>=capacity){
             ArrayList<DataNode> buffer_ = new ArrayList<>();
             // copy data first
-            for(int i=0; i<capacity-1; i++){
+            for(int i=1; i<capacity; i++){
                 buffer_.add(buffer.get(i));
             }
             // redirection

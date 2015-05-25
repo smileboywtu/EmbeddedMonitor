@@ -136,6 +136,7 @@ public class WirelessLCDSystem implements ActionListener,
     private final int COORDINATOR = 0x0001;
     private final int ROUTER = 0x0002;
     private final int LCD = 0x0003;
+    private final int VIBRATE = 0x0004;
 
     // Constants
     private final byte[] START_REQ = {
@@ -560,7 +561,7 @@ public class WirelessLCDSystem implements ActionListener,
         addr = addr.substring(2);
         // then get the bytes
         byte[] addrBytes = new byte[2];
-        addrBytes = addr.getBytes("GB2312");
+        StringToHexBytes(addr, addrBytes);
         buffer.write(addrBytes, 1, 1);
         buffer.write(addrBytes, 0, 1);
 
@@ -659,6 +660,9 @@ public class WirelessLCDSystem implements ActionListener,
 
         // Remove the event listenner
         serialPort.removeEventListener();
+        
+        // clear all the data
+        
     }
 
     // Tools for this program
@@ -726,6 +730,14 @@ public class WirelessLCDSystem implements ActionListener,
                     + " ";
         }
         return result;
+    }
+    
+    private void StringToHexBytes(String str, byte[] addr){
+        // we all ready know the size of the str is 4 bits
+        String str1 = str.substring(0, 2);
+        String str2 = str.substring(2, 4);
+        addr[0] = (byte)(Integer.parseInt(str1, 16)&0xFF);
+        addr[1] = (byte)(Integer.parseInt(str2, 16)&0xFF);
     }
     
     // use a thread to read data
@@ -1008,6 +1020,10 @@ public class WirelessLCDSystem implements ActionListener,
                             // only copy 6 bytes
                             ADXL345[i-5] = data[i];
                         }
+                        // notify the pane to updata 
+                        curve.invalidate();
+                        // repaint
+                        curve.repaint();
                     }else{
                         // do nothing here
                     }
@@ -1047,6 +1063,8 @@ public class WirelessLCDSystem implements ActionListener,
              createFile.createBitMapFile(hex, bmp);
              
              // when done call method to repaint the pane
+             image.invalidate();
+             // repaint
              image.repaint();
         }// end methods
         
@@ -1114,6 +1132,12 @@ public class WirelessLCDSystem implements ActionListener,
                 break;
             case LCD:
                 device = "LCD";
+                break;
+            case VIBRATE:
+                device = "Vibrate";
+                break;
+            default:
+                device = "Unknow";
                 break;
         }
 
@@ -1244,7 +1268,7 @@ public class WirelessLCDSystem implements ActionListener,
             y = BUILD_UINT32(ADXL345[2], ADXL345[3]);
             z = BUILD_UINT32(ADXL345[4], ADXL345[5]);
             // use vibrate visual tool to draw this
-            visualTool.drawVisualWave(x, y, z);
+            visualTool.drawVisualWave(x%60, y%60, z%60);
         }// end method
         
     }// end class
