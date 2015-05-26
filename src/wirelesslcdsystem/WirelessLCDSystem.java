@@ -127,16 +127,13 @@ public class WirelessLCDSystem implements ActionListener,
     private final int TEACHER_CMD = 4;
     private final int PEOPLE_CMD = 5;
     private final int TIME_CMD = 6;
-
-    // ACK, START, TOPOLOGY
-//    private final int TOPOLOGY_CMD = 0x0001;
-//    private final int START_CMD = 0x0000;
-//    private final int ACK_CMD   = 0xFFFF;
+    
     // DEVICE TYPE
     private final int COORDINATOR = 0x0001;
     private final int ROUTER = 0x0002;
     private final int LCD = 0x0003;
     private final int VIBRATE = 0x0004;
+    private final int CAMERA = 0x0005;
 
     // Constants
     private final byte[] START_REQ = {
@@ -1135,6 +1132,9 @@ public class WirelessLCDSystem implements ActionListener,
                 break;
             case VIBRATE:
                 device = "Vibrate";
+                break;
+            case CAMERA:
+                device = "Camera";
                 break;
             default:
                 device = "Unknow";
