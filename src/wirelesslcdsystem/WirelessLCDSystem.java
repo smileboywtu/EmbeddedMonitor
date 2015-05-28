@@ -142,12 +142,6 @@ public class WirelessLCDSystem implements ActionListener,
         (byte) 0x00, (byte) 0x00,
         (byte) 0x00};
 
-//    private final byte[] ACK = {
-//        (byte) 0xFE, (byte) 0x00,
-//        (byte) 0xFF, (byte) 0xFF,
-//        (byte) 0x00, (byte) 0x00,
-//        (byte) 0x00};
-
     // Command
     private final String STARTCOMMAND = "START";
     private final String SENDCOMMAND = "SEND";
@@ -628,9 +622,11 @@ public class WirelessLCDSystem implements ActionListener,
                 // initialize the read thread here
                 // do not need initialize the thread here
                 // first time do not initialize this thread
-                serialReadThread = new Thread(new SerialReader(serialIn));
-                // start the thread
-                serialReadThread.start();
+                if(null == serialReadThread){
+                    serialReadThread = new Thread(new SerialReader(serialIn));
+                    // start the thread
+                    serialReadThread.start();
+                }
                 
             } else {
                 System.out.println(
@@ -643,6 +639,7 @@ public class WirelessLCDSystem implements ActionListener,
         
         // interrupt the thread first
         serialReadThread.interrupt();
+        serialReadThread = null;
         
         // close stream first
         serialIn.close();
@@ -659,7 +656,7 @@ public class WirelessLCDSystem implements ActionListener,
         serialPort.removeEventListener();
         
         // clear all the data
-        
+        serialPort = null;
     }
 
     // Tools for this program
@@ -922,11 +919,11 @@ public class WirelessLCDSystem implements ActionListener,
                         // two temp file buffer
                         if(1 == tempFilePointer){
                             fileWriter = Files.newBufferedWriter(colorHex1,
-                                    StandardOpenOption.CREATE_NEW,
+                                    StandardOpenOption.CREATE,
                                     StandardOpenOption.TRUNCATE_EXISTING);
                         }else{
                             fileWriter = Files.newBufferedWriter(colorHex2,
-                                    StandardOpenOption.CREATE_NEW,
+                                    StandardOpenOption.CREATE,
                                     StandardOpenOption.TRUNCATE_EXISTING);
                         }
                         // update message
@@ -968,11 +965,11 @@ public class WirelessLCDSystem implements ActionListener,
                                (new Runnable() {
                                    @Override
                                    public void run() {
-                                       try {
-                                           packAndBuildBmpFile(colorHex1, bitMapFile);
-                                       } catch (IOException ex) {
-                                           Logger.getLogger(WirelessLCDSystem.class.getName()).log(Level.SEVERE, null, ex);
-                                       }
+//                                       try {
+//                                           //packAndBuildBmpFile(colorHex1, bitMapFile);
+//                                       } catch (IOException ex) {
+//                                           Logger.getLogger(WirelessLCDSystem.class.getName()).log(Level.SEVERE, null, ex);
+//                                       }
                                    }
                                }).run();
                                // notify the program to use buffer 2
@@ -1039,6 +1036,7 @@ public class WirelessLCDSystem implements ActionListener,
                         addrList.setEnabled(true);
                         comList.setEditable(false);
                         baudrateList.setEditable(false);
+                        
                         // update message
                         message.append("Coordinator ACK\n");
                     }
@@ -1185,7 +1183,7 @@ public class WirelessLCDSystem implements ActionListener,
                     // enable or disable the combobox
                     comList.setEnabled(false);
                     baudrateList.setEnabled(false);
-
+                    
                     // clear the message log
                     message.setText("");
                 } catch (NoSuchPortException | PortInUseException | UnsupportedCommOperationException | IOException | TooManyListenersException ex) {
@@ -1218,8 +1216,13 @@ public class WirelessLCDSystem implements ActionListener,
                 
                 // clear the topology information
                 defaultAddrList.removeAll(defaultAddrList);
+                // remove elements in topology
                 topology.deviceVector.removeAllElements();
-                topology.linkVector.removeAllElements();
+                topology.linkVector.removeAllElements();   
+                // repaint it this should make there no elements in the topo pane
+                canvas.repaint();               
+                // reset the topology root
+                topology.root = null;
                 break;
         }
     }
@@ -1280,7 +1283,7 @@ public class WirelessLCDSystem implements ActionListener,
         protected void paintComponent(Graphics g) {
             // inherited from JPanel
             super.paintComponent(g);
-
+            
             // draw my component
             // read the tree structure, then draw nodes and the link
             // all network information is saved in the topology
@@ -1341,7 +1344,7 @@ public class WirelessLCDSystem implements ActionListener,
 
             //Let the scroll pane know to update itself
             //and its scrollbars.
-            canvas.revalidate();
+            //canvas.revalidate();
 
             // repaint
             canvas.repaint();
