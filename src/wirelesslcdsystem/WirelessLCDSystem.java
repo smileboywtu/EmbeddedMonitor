@@ -95,6 +95,7 @@ import javax.imageio.ImageIO;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
+import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
@@ -234,7 +235,7 @@ public class WirelessLCDSystem implements ActionListener,
     private int tempFilePointer = 1;    // this means use buffer 1
     private final Path colorHex1 = Paths.get("./src/image/colorHex1.tmp");
     private final Path colorHex2 = Paths.get("./src/image/colorHex2.tmp");
-    private final Path bitMapFile = Paths.get("./src/image/smileboy.bmp");
+    private final Path bitMapFile = Paths.get("./src/image/smileboy.png");
     
     // params for the bmp file
     private final int imageHeight = 240;
@@ -370,7 +371,7 @@ public class WirelessLCDSystem implements ActionListener,
         // this is the top level pane
         JPanel graphicPane = new JPanel();
         graphicPane.setLayout(new BoxLayout(graphicPane, BoxLayout.PAGE_AXIS));
-        graphicPane.setPreferredSize(new Dimension(300, 200));
+        graphicPane.setPreferredSize(new Dimension(300, 180));
         
         // create x , y sliders bar
         xAxis = new JSlider(JSlider.HORIZONTAL, 0, 220, 0);
@@ -619,7 +620,7 @@ public class WirelessLCDSystem implements ActionListener,
 
         // set the preferred size
         statusBar.setPreferredSize(
-                new Dimension(250, 200));
+                new Dimension(250, 180));
 
         // return
         return statusBar;
@@ -1765,12 +1766,20 @@ public class WirelessLCDSystem implements ActionListener,
     };
 
     private static void createAndShow() {
+        
+        // Decorate the windows
+        JFrame.setDefaultLookAndFeelDecorated(true);
+        
         JFrame appFrame = new JFrame("Wireless LCD System");
         appFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
         WirelessLCDSystem system = new WirelessLCDSystem();
         appFrame.setContentPane(system.createPane());
-
+        // set the Icon
+        java.net.URL imgURL = WirelessLCDSystem.class.getResource("resource/appIcon.png");
+        if(null != imgURL)
+            appFrame.setIconImage(new ImageIcon(imgURL).getImage());
+        
         appFrame.pack();
         appFrame.setVisible(true);
     }
@@ -1778,7 +1787,7 @@ public class WirelessLCDSystem implements ActionListener,
     /**
      * @param args the command line arguments
      */
-    public static void main(String[] args) {
+    public static void main(String[] args){
         //Schedule a job for the event-dispatching thread:
         //creating and showing this application's GUI.
         javax.swing.SwingUtilities.invokeLater(new Runnable() {
