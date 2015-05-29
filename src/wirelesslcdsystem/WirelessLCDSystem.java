@@ -67,6 +67,7 @@ import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.ItemEvent;
 import java.awt.geom.GeneralPath;
 import java.awt.image.BufferedImage;
 import java.io.BufferedWriter;
@@ -91,13 +92,17 @@ import java.util.logging.Logger;
 import javax.imageio.ImageIO;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
+import javax.swing.ButtonGroup;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JFormattedTextField;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
+import javax.swing.JSlider;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SwingWorker;
@@ -127,6 +132,10 @@ public class WirelessLCDSystem implements ActionListener,
     private final int TEACHER_CMD = 4;
     private final int PEOPLE_CMD = 5;
     private final int TIME_CMD = 6;
+    private final int GRAPHICS_CMD = 0x000D;
+    
+    // IMAGE
+    private final int IMAGE_REQ_CMD = 0x000C;
     
     // DEVICE TYPE
     private final int COORDINATOR = 0x0001;
@@ -169,7 +178,29 @@ public class WirelessLCDSystem implements ActionListener,
     private String teacherName;
     private String peopleNumber;
     private String timeDuration;
-
+    
+    // hold data for graphics
+    private JSlider xAxis = null;
+    private JSlider yAxis = null;
+    private final Point p1 = new Point(0, 0);
+    private final Point p2 = new Point(0, 0);
+    private       int   R = 0;
+    private final JLabel L1 = new JLabel("  P1: (0,0)");
+    private final JButton set1 = new JButton("set p1");
+    private final JLabel L2 = new JLabel("  P2: (0,0)");
+    private final JButton set2 = new JButton("set p2");
+    private final JLabel LR = new JLabel("  R: 0");
+    private final JButton setR = new JButton("set   R");
+    private final JButton graph = new JButton("Render");
+    private final String[] objects = {
+                   "POINT",
+                   "LINE",
+                   "RECTANGLE",
+                   "CIRCLE"
+    };
+    private boolean clearState = true;
+    private String buttonSelected = "";
+    
     // RS232 controls
     private JComboBox comList;
     private JComboBox baudrateList;
@@ -260,22 +291,149 @@ public class WirelessLCDSystem implements ActionListener,
         // repose the pane
         JPanel layout1 = new JPanel(new BorderLayout());
         layout1.add(createLCDControlPane(), BorderLayout.PAGE_START);
-        layout1.add(createMessagePane(), BorderLayout.PAGE_END);
+        layout1.add(createLcdGraphicsPane(), BorderLayout.PAGE_END);
         // repose the pane
         JPanel layout2 = new JPanel(new BorderLayout());
         layout2.add(createPicturePane(), BorderLayout.PAGE_START);
         layout2.add(createADXL345Pane(), BorderLayout.PAGE_END);
         
+        JPanel layout3 = new JPanel(new BorderLayout());
         // add the lcd and the log pane
-        topLevelPane.add(layout1, BorderLayout.LINE_START);
-
+        layout3.add(layout1, BorderLayout.LINE_START);
         // add the topology pane
-        topLevelPane.add(createTopologyPane(), BorderLayout.CENTER);
-        
+        layout3.add(createTopologyPane(), BorderLayout.CENTER);
         // add the picture and adxl345 pane
-        topLevelPane.add(layout2, BorderLayout.LINE_END);
+        layout3.add(layout2, BorderLayout.LINE_END);
+        
+        // add the message pane
+        topLevelPane.add(layout3, BorderLayout.PAGE_START);
+        topLevelPane.add(createMessagePane(), BorderLayout.PAGE_END);
 
         return topLevelPane;
+    }
+    
+    private JPanel createLcdGraphicsPane(){
+        // create pane
+        // this is the top level pane
+        JPanel graphicPane = new JPanel();
+        graphicPane.setLayout(new BoxLayout(graphicPane, BoxLayout.PAGE_AXIS));
+        graphicPane.setPreferredSize(new Dimension(300, 280));
+        
+        // create x , y sliders bar
+        xAxis = new JSlider(JSlider.HORIZONTAL, 0, 220, 0);
+        xAxis.setMajorTickSpacing(60);
+        xAxis.setMinorTickSpacing(10);
+        xAxis.setPaintTicks(true);
+        xAxis.setPaintLabels(true);
+        yAxis = new JSlider(JSlider.HORIZONTAL, 0, 176, 0);
+        yAxis.setMajorTickSpacing(50);
+        yAxis.setMinorTickSpacing(10);
+        yAxis.setPaintTicks(true);
+        yAxis.setPaintLabels(true);
+        // struct it
+        JPanel axis = new JPanel();
+        axis.setLayout(new BoxLayout(axis, BoxLayout.LINE_AXIS));
+        axis.add(xAxis);
+        axis.add(yAxis);
+        //axis.setBackground(Color.green);
+        axis.setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3));
+        
+        // create set button
+        set1.addActionListener((ActionEvent e) -> {
+            // read slider bar 1
+            p1.x = xAxis.getValue();
+            p1.y = yAxis.getValue();
+            String str = "  P1: ("+p1.x+","+p1.y+")";
+            L1.setText(str);
+        });
+        set2.addActionListener((ActionEvent e) -> {
+            // read slider bar 1
+            p2.x = xAxis.getValue();
+            p2.y = yAxis.getValue();
+            String str = "  P2: ("+p2.x+","+p2.y+")";
+            L2.setText(str);
+        });
+        setR.addActionListener((ActionEvent e) -> {
+            // read slider bar 1
+            R = xAxis.getValue();
+            String str = "  R: "+ R + "";
+            LR.setText(str);
+        });
+        // contain point a label and set button
+        JPanel setPane = new JPanel();
+        GridBagLayout gridbag = new GridBagLayout();
+        setPane.setLayout(gridbag);
+        JButton[] buttons = {set1, set2, setR};
+        JLabel[]   labels = {L1, L2, LR};
+        addButtonLabelRows(buttons, labels,  gridbag, setPane);  
+        // create radio buttons
+        // create a action Listener
+        RadioButtonSelect check = new RadioButtonSelect(); 
+        // create buttons
+        JRadioButton pointButton = new JRadioButton(objects[0]);
+        pointButton.setActionCommand("point");
+        pointButton.addActionListener(check);
+        pointButton.setSelected(true);
+
+        JRadioButton lineButton = new JRadioButton(objects[1]);
+        lineButton.setActionCommand("line");
+        lineButton.addActionListener(check);
+
+        JRadioButton recButton = new JRadioButton(objects[2]);
+        recButton.setActionCommand("rectangle");
+        recButton.addActionListener(check);
+
+        JRadioButton circleButton = new JRadioButton(objects[3]);
+        circleButton.setActionCommand("circle");
+        circleButton.addActionListener(check);
+
+        //Group the radio buttons.
+        ButtonGroup group = new ButtonGroup();
+        group.add(pointButton);
+        group.add(lineButton);
+        group.add(recButton);
+        group.add(circleButton);
+        
+        JPanel radioPanel = new JPanel(new GridLayout(1, 4));
+        radioPanel.add(pointButton);
+        radioPanel.add(lineButton);
+        radioPanel.add(recButton);
+        radioPanel.add(circleButton);
+        
+        // use a pane to hold this
+//        JPanel objectSelect = new JPanel(new BorderLayout());
+//        objectSelect.add(setPane, BorderLayout.LINE_START);
+//        objectSelect.add(radioPanel, BorderLayout.LINE_END);
+        // add a border
+        setPane.setBorder( BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        
+        // create control panel
+        JCheckBox clearCheck = new JCheckBox("Auto-clear");
+        clearCheck.setSelected(true);
+        clearCheck.addItemListener((ItemEvent e) -> {
+            clearState = (e.getStateChange() == ItemEvent.SELECTED); 
+        });
+        graph.addActionListener(new RenderAction());
+        graph.setEnabled(false);
+        
+        JPanel controlPanel = new JPanel(new BorderLayout());
+        controlPanel.add(clearCheck, BorderLayout.LINE_START);
+        controlPanel.add(graph, BorderLayout.LINE_END);
+        controlPanel.setBorder( BorderFactory.createEmptyBorder(5, 5, 5, 5));
+  
+        // create a border for it
+        graphicPane.setBorder(
+            BorderFactory.createCompoundBorder(
+                        BorderFactory.createTitledBorder("Graphics"),
+                        BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+        
+        // add to the graphicPane
+        graphicPane.add(axis);
+        graphicPane.add(setPane);
+        graphicPane.add(radioPanel);
+        graphicPane.add(controlPanel);
+  
+        return graphicPane;
     }
 
     private JPanel createPicturePane(){
@@ -354,7 +512,7 @@ public class WirelessLCDSystem implements ActionListener,
 
     private JScrollPane createMessagePane() {
         // Create instance for the member message
-        message = new JTextArea(5, 25);
+        message = new JTextArea(3, 25);
         message.setEditable(false);
         message.setBackground(new Color(223, 231, 189));
         message.getDocument().addDocumentListener(new DocumentListener(){
@@ -381,7 +539,8 @@ public class WirelessLCDSystem implements ActionListener,
                         BorderFactory.createEmptyBorder(5, 5, 5, 5)));
 
         // set the preferred size
-        statusBar.setPreferredSize(new Dimension(300, 280));
+        statusBar.setPreferredSize(
+                new Dimension(statusBar.getPreferredSize().width, 100));
 
         // return
         return statusBar;
@@ -512,6 +671,27 @@ public class WirelessLCDSystem implements ActionListener,
         return container;
     }
 
+    private void addButtonLabelRows(JButton[] buttons,
+                                    JLabel[] labels,
+                                    GridBagLayout gridbag,
+                                    Container container){
+        GridBagConstraints c = new GridBagConstraints();
+        c.anchor = GridBagConstraints.CENTER;
+        int numLabels = labels.length;
+
+        for (int i = 0; i < numLabels; i++) {
+            c.gridwidth = GridBagConstraints.RELATIVE;   //next-to-last
+            c.fill = GridBagConstraints.CENTER;          //reset to default
+            c.weightx = 0.0;                             //reset to default
+            container.add(buttons[i], c);
+            
+            c.gridwidth = GridBagConstraints.REMAINDER;     //end row
+            c.fill = GridBagConstraints.HORIZONTAL;
+            c.weightx = 1.0;
+            container.add(labels[i], c);
+        }
+    }
+    
     private void addLabelTextRows(JLabel[] labels,
             JTextField[] textFields,
             GridBagLayout gridbag,
@@ -1147,6 +1327,11 @@ public class WirelessLCDSystem implements ActionListener,
 
         // update the address list
         if (device.equals("LCD")) {
+            // check if enable the ui
+            if( false == graph.isEnabled()){
+                graph.setEnabled(true);
+            }
+            
             if(false == defaultAddrList.contains(srcAddr)){
                 defaultAddrList.add(srcAddr);
                 // show message to the user
@@ -1213,6 +1398,9 @@ public class WirelessLCDSystem implements ActionListener,
                 addrList.setEnabled(false);
                 comList.setEnabled(true);
                 baudrateList.setEnabled(true);
+                
+                // for the graph
+                graph.setEnabled(false);
                 
                 // clear the topology information
                 defaultAddrList.removeAll(defaultAddrList);
@@ -1309,7 +1497,51 @@ public class WirelessLCDSystem implements ActionListener,
             }// end if
         }
     }
+    
+    class RenderAction implements ActionListener{
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            // source string contain nothing
+            String description = "";
+            
+            // if need to clear the screen
+            if(clearState){
+                description += "CLS(0)";
+            }
+            
+            // check action
+            switch(buttonSelected){
+                case "point":
+                    description += "PS("+p1.x+","+p1.y+",5);";
+                    break;
+                case "line":
+                    description += "PL("+p1.x+","+p1.y+","+p2.x+","+p2.y+",5);";
+                    break;
+                case "rectangle":
+                    description += "BOX("+p1.x+","+p1.y+","+p2.x+","+p2.y+",5);";
+                    break;
+                case "circle":
+                    description += "CIR("+p1.x+","+p1.y+","+R+",5);";
+                    break;     
+            }
+            
+            // render mark
+            description += "\r\n";
 
+            // here also use thread to do this
+            
+            buildAndSendFrame();
+        }
+        
+    }
+    
+    class RadioButtonSelect implements ActionListener{
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            buttonSelected = e.getActionCommand();
+        }
+    }
+    
     // here use the swingworker to deal with the incoming message
     // when the message is topology message, we will just update the 
     // the topology and canvas size
