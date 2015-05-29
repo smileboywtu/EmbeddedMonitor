@@ -55,6 +55,7 @@ import gnu.io.SerialPortEvent;
 import gnu.io.SerialPortEventListener;
 import gnu.io.UnsupportedCommOperationException;
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Container;
 import java.awt.Dimension;
@@ -63,6 +64,7 @@ import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
+import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
@@ -182,24 +184,30 @@ public class WirelessLCDSystem implements ActionListener,
     // hold data for graphics
     private JSlider xAxis = null;
     private JSlider yAxis = null;
-    private final Point p1 = new Point(0, 0);
-    private final Point p2 = new Point(0, 0);
+    private final Point p1 = new Point(0, 20);
+    private final Point p2 = new Point(0, 20);
     private       int   R = 0;
-    private final JLabel L1 = new JLabel("  P1: (0,0)");
-    private final JButton set1 = new JButton("set p1");
-    private final JLabel L2 = new JLabel("  P2: (0,0)");
-    private final JButton set2 = new JButton("set p2");
-    private final JLabel LR = new JLabel("  R: 0");
-    private final JButton setR = new JButton("set   R");
-    private final JButton graph = new JButton("Render");
+    private final JLabel L1 = new JLabel("P1: (0,20)");
+    private final JButton set1 = new JButton("x");
+    private final JLabel L2 = new JLabel("P2: (0,20)");
+    private final JButton set2 = new JButton("y");
+    private final JLabel LR = new JLabel("R: 0");
+    private final JButton setR = new JButton("r");
     private final String[] objects = {
                    "POINT",
                    "LINE",
                    "RECTANGLE",
                    "CIRCLE"
     };
+    
     private boolean clearState = true;
-    private String buttonSelected = "";
+    private String objectTypeSelected = "point";
+    
+    private JPanel cards = null;
+    private final String TEXT = "LCD Text";
+    private final String GRAPH = "LCD Graph";
+    
+    private String itemSelected = TEXT;
     
     // RS232 controls
     private JComboBox comList;
@@ -290,26 +298,71 @@ public class WirelessLCDSystem implements ActionListener,
 
         // repose the pane
         JPanel layout1 = new JPanel(new BorderLayout());
-        layout1.add(createLCDControlPane(), BorderLayout.PAGE_START);
-        layout1.add(createLcdGraphicsPane(), BorderLayout.PAGE_END);
-        // repose the pane
-        JPanel layout2 = new JPanel(new BorderLayout());
-        layout2.add(createPicturePane(), BorderLayout.PAGE_START);
-        layout2.add(createADXL345Pane(), BorderLayout.PAGE_END);
+        layout1.add(createSerialControlPane(), BorderLayout.PAGE_START);
+        layout1.add(createCardPane(), BorderLayout.CENTER);
+        layout1.add(createUserControlPane(), BorderLayout.PAGE_END);
         
+        JPanel layout2 = new JPanel(new BorderLayout());
+        layout2.add(layout1, BorderLayout.PAGE_START);
+        layout2.add(createMessagePane(), BorderLayout.PAGE_END);
+        
+        // repose the pane
         JPanel layout3 = new JPanel(new BorderLayout());
+        layout3.add(createPicturePane(), BorderLayout.PAGE_START);
+        layout3.add(createADXL345Pane(), BorderLayout.PAGE_END);
+        
+        JPanel layout4 = new JPanel(new BorderLayout());
         // add the lcd and the log pane
-        layout3.add(layout1, BorderLayout.LINE_START);
+        layout4.add(layout2, BorderLayout.LINE_START);
         // add the topology pane
-        layout3.add(createTopologyPane(), BorderLayout.CENTER);
+        layout4.add(createTopologyPane(), BorderLayout.CENTER);
         // add the picture and adxl345 pane
-        layout3.add(layout2, BorderLayout.LINE_END);
+        layout4.add(layout3, BorderLayout.LINE_END);
         
         // add the message pane
-        topLevelPane.add(layout3, BorderLayout.PAGE_START);
-        topLevelPane.add(createMessagePane(), BorderLayout.PAGE_END);
+        topLevelPane.add(layout4, BorderLayout.CENTER);
 
         return topLevelPane;
+    }
+    
+    private JPanel createCardPane(){
+        // topo pane
+        JPanel pane = new JPanel(new BorderLayout());
+        
+        // create card layout
+        cards = new JPanel(new CardLayout());
+        // use combo box to select
+        JPanel comboPane = new JPanel();
+        JComboBox shift = new JComboBox();
+        shift.setEditable(false);
+        shift.addItem(TEXT);
+        shift.addItem(GRAPH);
+        comboPane.add(shift);
+        
+        comboPane.setBorder(
+                BorderFactory.createCompoundBorder(
+                        BorderFactory.createTitledBorder("Card Chooser"),
+                        BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+        
+        // add item change listener
+        shift.addItemListener((ItemEvent e) -> {
+            CardLayout cl = (CardLayout)(cards.getLayout());
+            itemSelected = (String)e.getItem();
+            cl.show(cards, itemSelected);
+        });
+        
+        // add the two card
+        cards.add(createTextPane(), TEXT);
+        cards.add(createLcdGraphicsPane(), GRAPH);
+        
+        // set again
+        itemSelected = TEXT;
+        
+        // lay component
+        pane.add(comboPane, BorderLayout.PAGE_START);
+        pane.add(cards, BorderLayout.CENTER);
+        
+        return pane;
     }
     
     private JPanel createLcdGraphicsPane(){
@@ -317,7 +370,7 @@ public class WirelessLCDSystem implements ActionListener,
         // this is the top level pane
         JPanel graphicPane = new JPanel();
         graphicPane.setLayout(new BoxLayout(graphicPane, BoxLayout.PAGE_AXIS));
-        graphicPane.setPreferredSize(new Dimension(300, 280));
+        graphicPane.setPreferredSize(new Dimension(300, 200));
         
         // create x , y sliders bar
         xAxis = new JSlider(JSlider.HORIZONTAL, 0, 220, 0);
@@ -325,11 +378,13 @@ public class WirelessLCDSystem implements ActionListener,
         xAxis.setMinorTickSpacing(10);
         xAxis.setPaintTicks(true);
         xAxis.setPaintLabels(true);
-        yAxis = new JSlider(JSlider.HORIZONTAL, 0, 176, 0);
+        
+        yAxis = new JSlider(JSlider.HORIZONTAL, 20, 176, 20);
         yAxis.setMajorTickSpacing(50);
         yAxis.setMinorTickSpacing(10);
         yAxis.setPaintTicks(true);
         yAxis.setPaintLabels(true);
+        
         // struct it
         JPanel axis = new JPanel();
         axis.setLayout(new BoxLayout(axis, BoxLayout.LINE_AXIS));
@@ -343,29 +398,72 @@ public class WirelessLCDSystem implements ActionListener,
             // read slider bar 1
             p1.x = xAxis.getValue();
             p1.y = yAxis.getValue();
-            String str = "  P1: ("+p1.x+","+p1.y+")";
+            String str = "P1: ("+p1.x+","+p1.y+")";
             L1.setText(str);
         });
         set2.addActionListener((ActionEvent e) -> {
             // read slider bar 1
             p2.x = xAxis.getValue();
             p2.y = yAxis.getValue();
-            String str = "  P2: ("+p2.x+","+p2.y+")";
+            String str = "P2: ("+p2.x+","+p2.y+")";
             L2.setText(str);
         });
         setR.addActionListener((ActionEvent e) -> {
             // read slider bar 1
             R = xAxis.getValue();
-            String str = "  R: "+ R + "";
+            String str = "R: "+ R + "";
             LR.setText(str);
         });
         // contain point a label and set button
         JPanel setPane = new JPanel();
         GridBagLayout gridbag = new GridBagLayout();
         setPane.setLayout(gridbag);
-        JButton[] buttons = {set1, set2, setR};
-        JLabel[]   labels = {L1, L2, LR};
-        addButtonLabelRows(buttons, labels,  gridbag, setPane);  
+        // create a constrants for each one
+        GridBagConstraints c = new GridBagConstraints();
+        // set globals
+        c.gridwidth = 1;
+        c.anchor = GridBagConstraints.CENTER;
+        
+        // set row one
+        c.gridx = 0;               
+        c.gridy = 0;
+        c.insets = new Insets(0,0,0,10);
+        setPane.add(set1, c);
+        c.gridx = 1;               
+        c.gridy = 0;
+        setPane.add(L1, c);
+        c.gridx = 2;               
+        c.gridy = 0;
+        setPane.add(set2, c);
+        c.gridx = 3;               
+        c.gridy = 0;
+        // set row two
+        setPane.add(L2, c);
+        c.gridx = 0;               
+        c.gridy = 1;
+        c.fill = GridBagConstraints.HORIZONTAL;
+        setPane.add(setR, c);
+        c.gridx = 1;               
+        c.gridy = 1;
+        c.fill = GridBagConstraints.NONE;
+        setPane.add(LR, c);
+        
+        // create control panel
+        JCheckBox clearCheck = new JCheckBox("Auto-clear");
+        clearCheck.setSelected(true);
+        clearCheck.addItemListener((ItemEvent e) -> {
+            clearState = (e.getStateChange() == ItemEvent.SELECTED); 
+        });
+        
+        c.gridx = 3;               
+        c.gridy = 1;
+        c.gridwidth = 2;
+        c.fill = GridBagConstraints.BOTH;
+        setPane.add(clearCheck, c);
+        
+        // add a border to this
+        setPane.setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3));
+           
         // create radio buttons
         // create a action Listener
         RadioButtonSelect check = new RadioButtonSelect(); 
@@ -400,27 +498,9 @@ public class WirelessLCDSystem implements ActionListener,
         radioPanel.add(recButton);
         radioPanel.add(circleButton);
         
-        // use a pane to hold this
-//        JPanel objectSelect = new JPanel(new BorderLayout());
-//        objectSelect.add(setPane, BorderLayout.LINE_START);
-//        objectSelect.add(radioPanel, BorderLayout.LINE_END);
         // add a border
-        setPane.setBorder( BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        setPane.setBorder( BorderFactory.createEmptyBorder(3, 3, 3, 3));
         
-        // create control panel
-        JCheckBox clearCheck = new JCheckBox("Auto-clear");
-        clearCheck.setSelected(true);
-        clearCheck.addItemListener((ItemEvent e) -> {
-            clearState = (e.getStateChange() == ItemEvent.SELECTED); 
-        });
-        graph.addActionListener(new RenderAction());
-        graph.setEnabled(false);
-        
-        JPanel controlPanel = new JPanel(new BorderLayout());
-        controlPanel.add(clearCheck, BorderLayout.LINE_START);
-        controlPanel.add(graph, BorderLayout.LINE_END);
-        controlPanel.setBorder( BorderFactory.createEmptyBorder(5, 5, 5, 5));
-  
         // create a border for it
         graphicPane.setBorder(
             BorderFactory.createCompoundBorder(
@@ -431,7 +511,6 @@ public class WirelessLCDSystem implements ActionListener,
         graphicPane.add(axis);
         graphicPane.add(setPane);
         graphicPane.add(radioPanel);
-        graphicPane.add(controlPanel);
   
         return graphicPane;
     }
@@ -540,40 +619,14 @@ public class WirelessLCDSystem implements ActionListener,
 
         // set the preferred size
         statusBar.setPreferredSize(
-                new Dimension(statusBar.getPreferredSize().width, 100));
+                new Dimension(250, 200));
 
         // return
         return statusBar;
     }
 
-    private JPanel createLCDControlPane() {
-        // Create RS232 comport and BaudRate
-        comList = new JComboBox(comListStr);
-        comList.setSelectedIndex(0);
-        comList.setBorder(BorderFactory.createEmptyBorder(0, 5, 0, 5));
-
-        baudrateList = new JComboBox(baudrateListStr);
-        baudrateList.setSelectedIndex(0);
-        baudrateList.setBorder(BorderFactory.createEmptyBorder(0, 5, 0, 5));
-
-        // Create address list 
-        addrList = new JComboBox();
-        // default addr
-        addrList.addItem("None");
-        addrList.setSelectedIndex(0);
-        addrList.setEnabled(false);
-        addrList.setBorder(BorderFactory.createEmptyBorder(0, 5, 0, 5));
-
-        // Create Control Pane
-        JPanel RS232ControlPane = new JPanel(new GridLayout(1, 2));
-        RS232ControlPane.setBorder(
-                BorderFactory.createCompoundBorder(
-                        BorderFactory.createTitledBorder("RS232 Controls"),
-                        BorderFactory.createEmptyBorder(5, 5, 5, 5)));
-        RS232ControlPane.add(comList);
-        RS232ControlPane.add(baudrateList);
-
-        // Create class name field
+    private JPanel createTextPane(){
+          // Create class name field
         classTextField = new JTextField("size less than 10", 10);
 
         // Create subject name field
@@ -626,10 +679,14 @@ public class WirelessLCDSystem implements ActionListener,
         addLabelTextRows(labels, textFields, gridbag, textControlsPane);
         textControlsPane.setBorder(
                 BorderFactory.createCompoundBorder(
-                        BorderFactory.createTitledBorder("LCD Contents"),
+                        BorderFactory.createTitledBorder("Text"),
                         BorderFactory.createEmptyBorder(5, 5, 5, 5)));
-
-        // Create Buttons and open the UART
+        
+        return textControlsPane;
+    }
+    
+    private JPanel createUserControlPane(){
+          // Create Buttons and open the UART
         start = new JButton("start");
         start.setActionCommand(STARTCOMMAND);
         start.addActionListener(this);
@@ -660,36 +717,40 @@ public class WirelessLCDSystem implements ActionListener,
         // send and stop
         send.setEnabled(false);
         stop.setEnabled(false);
+        
+        // return 
+        return buttonPane;
+    }
+    
+    private JPanel createSerialControlPane() {
+        // Create RS232 comport and BaudRate
+        comList = new JComboBox(comListStr);
+        comList.setSelectedIndex(0);
+        comList.setBorder(BorderFactory.createEmptyBorder(0, 5, 0, 5));
 
-        // Create container
-        JPanel container = new JPanel(new BorderLayout());
-        container.add(RS232ControlPane, BorderLayout.PAGE_START);
-        container.add(textControlsPane, BorderLayout.CENTER);
-        container.add(buttonPane, BorderLayout.PAGE_END);
+        baudrateList = new JComboBox(baudrateListStr);
+        baudrateList.setSelectedIndex(0);
+        baudrateList.setBorder(BorderFactory.createEmptyBorder(0, 5, 0, 5));
+
+        // Create address list 
+        addrList = new JComboBox();
+        // default addr
+        addrList.addItem("None");
+        addrList.setSelectedIndex(0);
+        addrList.setEnabled(false);
+        addrList.setBorder(BorderFactory.createEmptyBorder(0, 5, 0, 5));
+
+        // Create Control Pane
+        JPanel RS232ControlPane = new JPanel(new GridLayout(1, 2));
+        RS232ControlPane.setBorder(
+                BorderFactory.createCompoundBorder(
+                        BorderFactory.createTitledBorder("RS232 Controls"),
+                        BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+        RS232ControlPane.add(comList);
+        RS232ControlPane.add(baudrateList);
 
         // return it
-        return container;
-    }
-
-    private void addButtonLabelRows(JButton[] buttons,
-                                    JLabel[] labels,
-                                    GridBagLayout gridbag,
-                                    Container container){
-        GridBagConstraints c = new GridBagConstraints();
-        c.anchor = GridBagConstraints.CENTER;
-        int numLabels = labels.length;
-
-        for (int i = 0; i < numLabels; i++) {
-            c.gridwidth = GridBagConstraints.RELATIVE;   //next-to-last
-            c.fill = GridBagConstraints.CENTER;          //reset to default
-            c.weightx = 0.0;                             //reset to default
-            container.add(buttons[i], c);
-            
-            c.gridwidth = GridBagConstraints.REMAINDER;     //end row
-            c.fill = GridBagConstraints.HORIZONTAL;
-            c.weightx = 1.0;
-            container.add(labels[i], c);
-        }
+        return RS232ControlPane;
     }
     
     private void addLabelTextRows(JLabel[] labels,
@@ -1327,10 +1388,6 @@ public class WirelessLCDSystem implements ActionListener,
 
         // update the address list
         if (device.equals("LCD")) {
-            // check if enable the ui
-            if( false == graph.isEnabled()){
-                graph.setEnabled(true);
-            }
             
             if(false == defaultAddrList.contains(srcAddr)){
                 defaultAddrList.add(srcAddr);
@@ -1398,9 +1455,6 @@ public class WirelessLCDSystem implements ActionListener,
                 addrList.setEnabled(false);
                 comList.setEnabled(true);
                 baudrateList.setEnabled(true);
-                
-                // for the graph
-                graph.setEnabled(false);
                 
                 // clear the topology information
                 defaultAddrList.removeAll(defaultAddrList);
@@ -1498,47 +1552,10 @@ public class WirelessLCDSystem implements ActionListener,
         }
     }
     
-    class RenderAction implements ActionListener{
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            // source string contain nothing
-            String description = "";
-            
-            // if need to clear the screen
-            if(clearState){
-                description += "CLS(0)";
-            }
-            
-            // check action
-            switch(buttonSelected){
-                case "point":
-                    description += "PS("+p1.x+","+p1.y+",5);";
-                    break;
-                case "line":
-                    description += "PL("+p1.x+","+p1.y+","+p2.x+","+p2.y+",5);";
-                    break;
-                case "rectangle":
-                    description += "BOX("+p1.x+","+p1.y+","+p2.x+","+p2.y+",5);";
-                    break;
-                case "circle":
-                    description += "CIR("+p1.x+","+p1.y+","+R+",5);";
-                    break;     
-            }
-            
-            // render mark
-            description += "\r\n";
-
-            // here also use thread to do this
-            
-            buildAndSendFrame();
-        }
-        
-    }
-    
     class RadioButtonSelect implements ActionListener{
         @Override
         public void actionPerformed(ActionEvent e) {
-            buttonSelected = e.getActionCommand();
+            objectTypeSelected = e.getActionCommand();
         }
     }
     
@@ -1604,86 +1621,132 @@ public class WirelessLCDSystem implements ActionListener,
 
         @Override
         protected Void doInBackground() throws Exception {
-            String data = " ";
+            // save data string
+            String data = "";
 
-            for (int i = 1; i <= 5; i++) {
-                // Array sava the data in char[]
+            
+            if (GRAPH.equals(itemSelected)) {
+                // get new every time
                 Infor t = new Infor();
-
-                // check each text field for message
-                switch (i) {
-                    // class
-                    case 1:
-                        t.cmd = CLASS_CMD;
-                        className = classTextField.getText();
-                        if ("size less than 10".equals(className)) {
-                            className = "";
-                        } else {
-                            if (className.length() > 10) {
-                                className = "Not support";
-                            }
-                        }
-                        data = className;
+                // if need to clear the screen
+                if (clearState) {
+                    // do not erase the title
+                    data += "BOXF(0,20,220,176,0);";
+                }
+                // check action
+                switch (objectTypeSelected) {
+                    case "point":
+                        data += "PS(" + p1.x + "," + p1.y + ",15);";
                         break;
-                    // subject
-                    case 2:
-                        t.cmd = SUBJECT_CMD;
-                        subjectName = subjectTextField.getText();
-                        if ("size less than 10".equals(subjectName)) {
-                            subjectName = "";
-                        } else {
-                            if (subjectName.length() > 10) {
-                                subjectName = "Not support";
-                            }
-                        }
-                        data = subjectName;
+                    case "line":
+                        data += "PL(" + p1.x + "," + p1.y + "," + p2.x + "," + p2.y + ",15);";
                         break;
-                    // teacher
-                    case 3:
-                        t.cmd = TEACHER_CMD;
-                        teacherName = teacherTextField.getText();
-                        if ("size less than 5".equals(teacherName)) {
-                            teacherName = "";
-                        } else {
-                            if (teacherName.length() > 5) {
-                                teacherName = "Not support";
-                            }
-                        }
-                        data = teacherName;
+                    case "rectangle":
+                        data += "BOX(" + p1.x + "," + p1.y + "," + p2.x + "," + p2.y + ",15);";
                         break;
-                    // people
-                    case 4:
-                        t.cmd = PEOPLE_CMD;
-                        peopleNumber = peopleTextField.getText();
-                        if ("size less than 3".equals(peopleNumber)) {
-                            peopleNumber = "";
-                        } else {
-                            if (peopleNumber.length() > 3) {
-                                peopleNumber = "Not support";
-                            }
-                        }
-                        data = peopleNumber;
-                        break;
-                    // time
-                    case 5:
-                        t.cmd = TIME_CMD;
-                        timeDuration = timeTextField.getText();
-                        data = timeDuration;
-                        break;
-
-                    default:
+                    case "circle":
+                        data += "CIR(" + p1.x + "," + p1.y + "," + R + ",15);";
                         break;
                 }
+
+                // render mark
+                data += "\r\n";
+                
+                // set the cmd
+                t.cmd = GRAPHICS_CMD;
+                        
                 // get the byte array of the message
                 // get addr infor from the addrList
                 t.addr = defaultAddrList.get(addrList.getSelectedIndex());
                 t.pMsg = data.getBytes("GB2312");
                 t.len = t.pMsg.length;
-
                 // just send the message out 
                 publish(t);
+                
+            } else {
 
-            }
+                for (int i = 0; i <= 5; i++) {
+                    // get new every time
+                    Infor t = new Infor();
+                    // check each text field for message
+                    switch (i) {
+                        // clear first
+                        case 0:
+                            t.cmd = GRAPHICS_CMD;
+                            data = "BOXF(0,20,220,176,0);\r\n";
+                            break;
+                        // class
+                        case 1:
+                            t.cmd = CLASS_CMD;
+                            className = classTextField.getText();
+                            if ("size less than 10".equals(className)) {
+                                className = "";
+                            } else {
+                                if (className.length() > 10) {
+                                    className = "Not support";
+                                }
+                            }
+                            // here you need to clear the screen first
+                            data = className;
+                            break;
+                        // subject
+                        case 2:
+                            t.cmd = SUBJECT_CMD;
+                            subjectName = subjectTextField.getText();
+                            if ("size less than 10".equals(subjectName)) {
+                                subjectName = "";
+                            } else {
+                                if (subjectName.length() > 10) {
+                                    subjectName = "Not support";
+                                }
+                            }
+                            data = subjectName;
+                            break;
+                        // teacher
+                        case 3:
+                            t.cmd = TEACHER_CMD;
+                            teacherName = teacherTextField.getText();
+                            if ("size less than 5".equals(teacherName)) {
+                                teacherName = "";
+                            } else {
+                                if (teacherName.length() > 5) {
+                                    teacherName = "Not support";
+                                }
+                            }
+                            data = teacherName;
+                            break;
+                        // people
+                        case 4:
+                            t.cmd = PEOPLE_CMD;
+                            peopleNumber = peopleTextField.getText();
+                            if ("size less than 3".equals(peopleNumber)) {
+                                peopleNumber = "";
+                            } else {
+                                if (peopleNumber.length() > 3) {
+                                    peopleNumber = "Not support";
+                                }
+                            }
+                            data = peopleNumber;
+                            break;
+                        // time
+                        case 5:
+                            t.cmd = TIME_CMD;
+                            timeDuration = timeTextField.getText();
+                            data = timeDuration;
+                            break;
+
+                        default:
+                            break;
+                    }// end switch
+                    
+                    // get addr infor from the addrList
+                    t.addr = defaultAddrList.get(addrList.getSelectedIndex());
+                    t.pMsg = data.getBytes("GB2312");
+                    t.len = t.pMsg.length;
+                    // just send the message out 
+                    publish(t);
+                }// end while
+            }// end else
             // nothing to return
             return null;
         }
