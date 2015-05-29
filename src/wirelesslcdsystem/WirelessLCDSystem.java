@@ -1775,11 +1775,21 @@ public class WirelessLCDSystem implements ActionListener,
 
         WirelessLCDSystem system = new WirelessLCDSystem();
         appFrame.setContentPane(system.createPane());
+        
         // set the Icon
         java.net.URL imgURL = WirelessLCDSystem.class.getResource("resource/appIcon.png");
         if(null != imgURL)
             appFrame.setIconImage(new ImageIcon(imgURL).getImage());
+        // set the location relative to null
         
+        appFrame.setLocationRelativeTo(null);
+        // get the location
+        int x = appFrame.getLocation().x;
+        int y = appFrame.getLocation().y;
+        // set again
+        appFrame.setLocation(x-600, y-300);
+        
+        // show
         appFrame.pack();
         appFrame.setVisible(true);
     }
