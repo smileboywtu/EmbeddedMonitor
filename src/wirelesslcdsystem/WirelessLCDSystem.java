@@ -58,6 +58,7 @@ import java.awt.AlphaComposite;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
+import java.awt.ComponentOrientation;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Graphics;
@@ -96,6 +97,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.imageio.ImageIO;
 import javax.swing.BorderFactory;
+import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.ImageIcon;
@@ -106,8 +108,10 @@ import javax.swing.JFormattedTextField;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JProgressBar;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
+import javax.swing.JSeparator;
 import javax.swing.JSlider;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
@@ -186,6 +190,10 @@ public class WirelessLCDSystem implements ActionListener,
     private String peopleNumber;
     private String timeDuration;
     
+    // hold data for remote camera
+    private final JButton cameraLoading = new JButton("Loading");
+    private JProgressBar cameraWaiting = new JProgressBar();
+    
     // hold data for graphics
     private JSlider xAxis = null;
     private JSlider yAxis = null;
@@ -209,15 +217,17 @@ public class WirelessLCDSystem implements ActionListener,
     private String objectTypeSelected = "point";
     
     private JPanel cards = null;
-    private final String TEXT = "LCD Text";
-    private final String GRAPH = "LCD Graph";
+    private final String TEXT = "Remote Screen Work With Text";
+    private final String GRAPH = "Remote Screen Work With Graph";
+    private final String PICTURE = "Remote Camera Control";
     
     private String itemSelected = TEXT;
     
     // RS232 controls
     private JComboBox comList;
     private JComboBox baudrateList;
-    private JComboBox addrList;
+    private JComboBox addrListForLcd;
+    private JComboBox addrListForCamera;
 
     // RS232 handler
     private SerialPort serialPort;
@@ -283,7 +293,8 @@ public class WirelessLCDSystem implements ActionListener,
         "38400"
     };
 
-    private final ArrayList<String> defaultAddrList = new ArrayList<>();
+    private final ArrayList<String> LCDAddressList = new ArrayList<>();
+    private final ArrayList<String> CameraAddressList = new ArrayList();
     
     public WirelessLCDSystem(){
         // only for test
@@ -342,6 +353,7 @@ public class WirelessLCDSystem implements ActionListener,
         shift.setEditable(false);
         shift.addItem(TEXT);
         shift.addItem(GRAPH);
+        shift.addItem(PICTURE);
         comboPane.add(shift);
         
         comboPane.setBorder(
@@ -359,6 +371,7 @@ public class WirelessLCDSystem implements ActionListener,
         // add the two card
         cards.add(createTextPane(), TEXT);
         cards.add(createLcdGraphicsPane(), GRAPH);
+        cards.add(createCameraControlPane(), PICTURE);
         
         // set again
         itemSelected = TEXT;
@@ -368,6 +381,41 @@ public class WirelessLCDSystem implements ActionListener,
         pane.add(cards, BorderLayout.CENTER);
         
         return pane;
+    }
+    
+    private JPanel createCameraControlPane(){
+        // container
+        JPanel containPane = new JPanel();
+        // use vertical box
+        containPane.setLayout(new BoxLayout(containPane, BoxLayout.PAGE_AXIS));
+        
+        // first create top half pane
+        JPanel topHalf = new JPanel();
+        topHalf.setLayout(new BoxLayout(topHalf, BoxLayout.LINE_AXIS));
+        topHalf.add(cameraLoading);
+        topHalf.add(Box.createRigidArea(new Dimension(100, 0)));
+        addrListForCamera = new JComboBox();
+        addrListForCamera.addItem("NULL");
+        topHalf.add(addrListForCamera);
+        topHalf.setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3));
+        
+        // bottom half pane
+        JPanel bottomHalf = new JPanel(new BorderLayout());
+        bottomHalf.add(new JSeparator(JSeparator.HORIZONTAL), BorderLayout.PAGE_START);
+        bottomHalf.add(cameraWaiting, BorderLayout.PAGE_END);
+        bottomHalf.setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3));
+        
+        // add 
+        containPane.add(topHalf);
+        containPane.add(bottomHalf);
+        
+        // set border
+        containPane.setBorder(
+            BorderFactory.createCompoundBorder(
+                        BorderFactory.createTitledBorder("Camera Control"),
+                        BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+        // return 
+        return containPane;
     }
     
     private JPanel createLcdGraphicsPane(){
@@ -709,7 +757,7 @@ public class WirelessLCDSystem implements ActionListener,
 
         buttonPane.add(start);
         buttonPane.add(send);
-        buttonPane.add(addrList);
+        buttonPane.add(addrListForLcd);
         buttonPane.add(stop);
 
         // set border for button pane
@@ -738,12 +786,12 @@ public class WirelessLCDSystem implements ActionListener,
         baudrateList.setBorder(BorderFactory.createEmptyBorder(0, 5, 0, 5));
 
         // Create address list 
-        addrList = new JComboBox();
+        addrListForLcd = new JComboBox();
         // default addr
-        addrList.addItem("None");
-        addrList.setSelectedIndex(0);
-        addrList.setEnabled(false);
-        addrList.setBorder(BorderFactory.createEmptyBorder(0, 5, 0, 5));
+        addrListForLcd.addItem("None");
+        addrListForLcd.setSelectedIndex(0);
+        addrListForLcd.setEnabled(false);
+        addrListForLcd.setBorder(BorderFactory.createEmptyBorder(0, 5, 0, 5));
 
         // Create Control Pane
         JPanel RS232ControlPane = new JPanel(new GridLayout(1, 2));
@@ -1279,7 +1327,7 @@ public class WirelessLCDSystem implements ActionListener,
                         stop.setEnabled(true);
 
                         // list enable
-                        addrList.setEnabled(true);
+                        addrListForLcd.setEnabled(true);
                         comList.setEditable(false);
                         baudrateList.setEditable(false);
                         
@@ -1394,15 +1442,26 @@ public class WirelessLCDSystem implements ActionListener,
         // update the address list
         if (device.equals("LCD")) {
             
-            if(false == defaultAddrList.contains(srcAddr)){
-                defaultAddrList.add(srcAddr);
+            if(false == LCDAddressList.contains(srcAddr)){
+                LCDAddressList.add(srcAddr);
                 // show message to the user
                 message.append(srcAddr + " join the network" + "\n");
             }
-            addrList.removeAllItems();
+            addrListForLcd.removeAllItems();
             // if the address already in the list then exit
-            defaultAddrList.stream().forEach((i) -> {
-                addrList.addItem(i);
+            LCDAddressList.stream().forEach((i) -> {
+                addrListForLcd.addItem(i);
+            });
+        }else if(device.equals("Camera")){
+            if(false == CameraAddressList.contains(srcAddr)){
+                CameraAddressList.add(srcAddr);
+                // show message to the user
+                message.append(srcAddr + " join the network" + "\n");
+            }
+            addrListForCamera.removeAllItems();
+            // if the address already in the list then exit
+            CameraAddressList.stream().forEach((i) -> {
+                addrListForCamera.addItem(i);
             });
         }
     }
@@ -1457,12 +1516,12 @@ public class WirelessLCDSystem implements ActionListener,
                 stop.setEnabled(false);
 
                 // enable or disable the combobox
-                addrList.setEnabled(false);
+                addrListForLcd.setEnabled(false);
                 comList.setEnabled(true);
                 baudrateList.setEnabled(true);
                 
                 // clear the topology information
-                defaultAddrList.removeAll(defaultAddrList);
+                LCDAddressList.removeAll(LCDAddressList);
                 // remove elements in topology
                 topology.deviceVector.removeAllElements();
                 topology.linkVector.removeAllElements();   
@@ -1661,8 +1720,8 @@ public class WirelessLCDSystem implements ActionListener,
                 t.cmd = GRAPHICS_CMD;
                         
                 // get the byte array of the message
-                // get addr infor from the addrList
-                t.addr = defaultAddrList.get(addrList.getSelectedIndex());
+                // get addr infor from the addrListForLcd
+                t.addr = LCDAddressList.get(addrListForLcd.getSelectedIndex());
                 t.pMsg = data.getBytes("GB2312");
                 t.len = t.pMsg.length;
                 // just send the message out 
@@ -1744,8 +1803,8 @@ public class WirelessLCDSystem implements ActionListener,
                             break;
                     }// end switch
                     
-                    // get addr infor from the addrList
-                    t.addr = defaultAddrList.get(addrList.getSelectedIndex());
+                    // get addr infor from the addrListForLcd
+                    t.addr = LCDAddressList.get(addrListForLcd.getSelectedIndex());
                     t.pMsg = data.getBytes("GB2312");
                     t.len = t.pMsg.length;
                     // just send the message out 
