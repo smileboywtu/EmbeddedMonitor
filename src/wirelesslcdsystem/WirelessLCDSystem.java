@@ -58,8 +58,8 @@ import java.awt.AlphaComposite;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
-import java.awt.ComponentOrientation;
 import java.awt.Container;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
@@ -179,6 +179,9 @@ public class WirelessLCDSystem implements ActionListener,
     private JButton send;
     private JButton stop;
 
+    // top level pane
+    private JPanel topLevelPane = null;
+    
     // handler for topology and message status bar
     private JPanel canvas = null;
     private JTextArea message = null;
@@ -192,7 +195,7 @@ public class WirelessLCDSystem implements ActionListener,
     
     // hold data for remote camera
     private final JButton cameraLoading = new JButton("Loading");
-    private JProgressBar cameraWaiting = new JProgressBar();
+    private final JProgressBar cameraWaiting = new JProgressBar();
     
     // hold data for graphics
     private JSlider xAxis = null;
@@ -310,7 +313,7 @@ public class WirelessLCDSystem implements ActionListener,
 
     public JPanel createPane() {
         // create top-level pane
-        JPanel topLevelPane = new JPanel(new BorderLayout());
+        topLevelPane = new JPanel(new BorderLayout());
 
         // repose the pane
         JPanel layout1 = new JPanel(new BorderLayout());
@@ -392,6 +395,10 @@ public class WirelessLCDSystem implements ActionListener,
         // first create top half pane
         JPanel topHalf = new JPanel();
         topHalf.setLayout(new BoxLayout(topHalf, BoxLayout.LINE_AXIS));
+        cameraLoading.addActionListener((ActionEvent e) -> {
+            cameraLoading.setEnabled(false);
+            topLevelPane.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+        });
         topHalf.add(cameraLoading);
         topHalf.add(Box.createRigidArea(new Dimension(100, 0)));
         addrListForCamera = new JComboBox();
@@ -402,12 +409,17 @@ public class WirelessLCDSystem implements ActionListener,
         // bottom half pane
         JPanel bottomHalf = new JPanel(new BorderLayout());
         bottomHalf.add(new JSeparator(JSeparator.HORIZONTAL), BorderLayout.PAGE_START);
+        cameraWaiting.setMaximum(0);
+        cameraWaiting.setMaximum(153600);
+        cameraWaiting.setValue(0);
+        cameraWaiting.setStringPainted(true);
         bottomHalf.add(cameraWaiting, BorderLayout.PAGE_END);
         bottomHalf.setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3));
         
         // add 
         containPane.add(topHalf);
         containPane.add(bottomHalf);
+        containPane.add(Box.createRigidArea(new Dimension(0, 40)));
         
         // set border
         containPane.setBorder(
@@ -1440,29 +1452,27 @@ public class WirelessLCDSystem implements ActionListener,
         (new UpdateTopology(parentAddr, srcAddr, device)).execute();
 
         // update the address list
-        if (device.equals("LCD")) {
-            
-            if(false == LCDAddressList.contains(srcAddr)){
-                LCDAddressList.add(srcAddr);
-                // show message to the user
-                message.append(srcAddr + " join the network" + "\n");
-            }
-            addrListForLcd.removeAllItems();
-            // if the address already in the list then exit
-            LCDAddressList.stream().forEach((i) -> {
-                addrListForLcd.addItem(i);
-            });
-        }else if(device.equals("Camera")){
-            if(false == CameraAddressList.contains(srcAddr)){
-                CameraAddressList.add(srcAddr);
-                // show message to the user
-                message.append(srcAddr + " join the network" + "\n");
-            }
-            addrListForCamera.removeAllItems();
-            // if the address already in the list then exit
-            CameraAddressList.stream().forEach((i) -> {
-                addrListForCamera.addItem(i);
-            });
+        switch (device) {
+            case "LCD":
+                if(false == LCDAddressList.contains(srcAddr)){
+                    LCDAddressList.add(srcAddr);
+                    // show message to the user
+                    message.append(srcAddr + " join the network" + "\n");
+                }   addrListForLcd.removeAllItems();
+                // if the address already in the list then exit
+                LCDAddressList.stream().forEach((i) -> {
+                    addrListForLcd.addItem(i);
+            }); break;
+            case "Camera":
+                if(false == CameraAddressList.contains(srcAddr)){
+                    CameraAddressList.add(srcAddr);
+                    // show message to the user
+                    message.append(srcAddr + " join the network" + "\n");
+                }   addrListForCamera.removeAllItems();
+                // if the address already in the list then exit
+                CameraAddressList.stream().forEach((i) -> {
+                    addrListForCamera.addItem(i);
+            }); break;
         }
     }
 
