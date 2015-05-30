@@ -54,6 +54,7 @@ import gnu.io.SerialPort;
 import gnu.io.SerialPortEvent;
 import gnu.io.SerialPortEventListener;
 import gnu.io.UnsupportedCommOperationException;
+import java.awt.AlphaComposite;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
@@ -64,6 +65,7 @@ import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
+import java.awt.Image;
 import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Rectangle;
@@ -87,6 +89,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Random;
 import java.util.TooManyListenersException;
 import java.util.Vector;
 import java.util.logging.Level;
@@ -108,6 +111,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JSlider;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.JWindow;
 import javax.swing.SwingWorker;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
@@ -1764,20 +1768,156 @@ public class WirelessLCDSystem implements ActionListener,
         }
 
     };
+    
+    private static void createAndShowLoading(){
+        // create loading welcome
+        JWindow loading = new JWindow();
+        loading.setAlwaysOnTop(true);
+        
+        // set backgroud
+        loading.setBackground(new Color(0, 0, 0, 0));
+        
+        // set transparent content
+        loading.setContentPane(new JPanel(){        
+            @Override
+            public void setOpaque(boolean isOpaque) {
+                super.setOpaque(false); 
+            }
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                // get g2
+                Graphics2D g2 = (Graphics2D)g.create();
+                g2.setComposite(AlphaComposite.SrcOver.derive(0.0f));
+                g2.setColor(getBackground());
+                g2.fillRect(0, 0, getWidth(), getHeight());
+            }          
+        });
+        
+        JLabel mainLabel = null;
+        // add the icon
+        java.net.URL imgURL = WirelessLCDSystem.class.getResource("resource/welcome.png");
+        if(null != imgURL){
+            mainLabel = new JLabel(new ImageIcon(imgURL));
+            loading.add(mainLabel);
+        }
+        
+        // set the property location
+        loading.setLocationRelativeTo(null);
+        int x = loading.getLocation().x;
+        int y = loading.getLocation().y;
+        loading.setLocation(x-400, y-250);
+        
+        // pack and show
+        loading.pack();
+        // show 
+        loading.setVisible(true);
+        // use a thread to update the logo
+        (new WelcomeLogo(loading, mainLabel)).execute();
+    }
 
-    private static void createAndShow() {
+    /**
+     * @param args the command line arguments
+     */
+    public static void main(String[] args){
+        //Schedule a job for the event-dispatching thread:
+        //creating and showing this application's GUI.
+        javax.swing.SwingUtilities.invokeLater(new Runnable() {
+            public void run() {
+                createAndShowLoading();
+            }
+        });
+    }
+
+}
+
+// use to update the logo
+class WelcomeLogo extends SwingWorker<Void, BufferedImage>{
+
+    // main frame
+    private JWindow currentWindow = null;
+    private JLabel label = null;
+    private JFrame appFrame = null;
+    
+    //private static int test = 0;
+    
+    public WelcomeLogo(JWindow w, JLabel l){
+        currentWindow = w;
+        if(l == null)
+            label = new JLabel("Loading...");
+        else
+            label = l;
+    }
+    
+    @Override
+    protected void done() {
+        // transparent it
+        // close the current window
+        currentWindow.setVisible(false);
+        currentWindow.dispose();
+        // show main window
+        appFrame.setVisible(true);
+    }
+
+    @Override
+    protected void process(List<BufferedImage> chunks) {
+        chunks.stream().forEach((i) -> {
+            //create new pane
+            label.setIcon(new ImageIcon(i));   
+            //test
+            //System.out.println(test);
+        });
+        
+    }
+
+    @Override
+    protected Void doInBackground() throws Exception {
+        // first draw the window and do not show it
+        createAndShowMain();
+        
+        // here will draw new image label
+        float counter = 0.0f;
+        Random generator = new Random();
+        java.net.URL imgURL = WirelessLCDSystem.class.getResource("resource/welcome.png");
+        Image img = ImageIO.read(imgURL);
+        // slepp a random time and update the label
+        while(true){
+            if(counter >= 100){
+                break;
+            }
+            // get random number less than 20 every time
+            counter += generator.nextFloat()*20;
+            // every time create a new image
+            BufferedImage img_ = new BufferedImage(800, 500, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D handler = img_.createGraphics();
+            // according to the counter
+            int process = Math.round((counter/100)*800);
+            // draw to the image
+            handler.drawImage(img, 0, 0, null);
+            handler.setColor(Color.yellow);
+            handler.fillRect(0, 460, process, 2);
+            // process
+            //test++;
+            publish(img_);
+            // sleep a while
+            Thread.sleep(500);
+        }
+        return null;
+    }
+    
+    private void createAndShowMain() {
         
         // Decorate the windows
         JFrame.setDefaultLookAndFeelDecorated(true);
         
-        JFrame appFrame = new JFrame("Wireless LCD System");
+        appFrame = new JFrame("Wireless LCD System");
         appFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
         WirelessLCDSystem system = new WirelessLCDSystem();
         appFrame.setContentPane(system.createPane());
         
         // set the Icon
-        java.net.URL imgURL = WirelessLCDSystem.class.getResource("resource/appIcon.png");
+        java.net.URL imgURL = WirelessLCDSystem.class.getResource("resource/logo.jpg");
         if(null != imgURL)
             appFrame.setIconImage(new ImageIcon(imgURL).getImage());
         // set the location relative to null
@@ -1791,22 +1931,7 @@ public class WirelessLCDSystem implements ActionListener,
         
         // show
         appFrame.pack();
-        appFrame.setVisible(true);
     }
-
-    /**
-     * @param args the command line arguments
-     */
-    public static void main(String[] args){
-        //Schedule a job for the event-dispatching thread:
-        //creating and showing this application's GUI.
-        javax.swing.SwingUtilities.invokeLater(new Runnable() {
-            public void run() {
-                createAndShow();
-            }
-        });
-    }
-
 }
 
 // save topology hold structure
