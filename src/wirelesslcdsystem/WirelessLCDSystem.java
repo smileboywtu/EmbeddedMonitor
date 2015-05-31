@@ -75,9 +75,7 @@ import java.awt.event.ActionListener;
 import java.awt.event.ItemEvent;
 import java.awt.geom.GeneralPath;
 import java.awt.image.BufferedImage;
-import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -88,6 +86,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Random;
@@ -146,7 +145,7 @@ public class WirelessLCDSystem implements ActionListener,
     private final int GRAPHICS_CMD = 0x000D;
     
     // IMAGE
-    //private final int IMAGE_REQ_CMD = 0x000C;
+    private final int IMAGE_REQ_CMD = 0x000C;
     
     // DATA Allow OR Refuse
 //    private final int DATA_ALLOW = 0x000E;
@@ -176,12 +175,6 @@ public class WirelessLCDSystem implements ActionListener,
         (byte) 0xFE, (byte) 0x00,
         (byte) 0x00, (byte) 0x00,
         (byte) 0x0F, (byte) 0x00,
-        (byte) 0x00};
-    // Image request
-    private final byte[] IMAGE_REQ = {
-        (byte) 0xFE, (byte) 0x00,
-        (byte) 0x00, (byte) 0x00,
-        (byte) 0x0C, (byte) 0x00,
         (byte) 0x00};
     
     // Command
@@ -269,12 +262,9 @@ public class WirelessLCDSystem implements ActionListener,
     private int state = 1;
 
     // files to read and write
-    private int counter = 0;
-    private BufferedWriter fileWriter = null;
-    private int tempFilePointer = 1;    // this means use buffer 1
-    private final Path colorHex1 = Paths.get("./src/image/colorHex1.tmp");
-    private final Path colorHex2 = Paths.get("./src/image/colorHex2.tmp");
-    private final Path bitMapFile = Paths.get("./src/image/smileboy.png");
+    private int receivedImageBytes = 0;
+    private OutputStream fileWriter = null;
+    private final Path newImage = Paths.get("./src/image/camera.bmp");
     
     // params for the bmp file
     private final int imageHeight = 240;
@@ -300,7 +290,7 @@ public class WirelessLCDSystem implements ActionListener,
     private final VibrateVisual visualTool = new VibrateVisual();
     
     // pane for picture
-    private JPanel image = null;
+    private ImagePane image = null;
 
     // save the topology
     private final TopologyTree topology = new TopologyTree();
@@ -333,7 +323,7 @@ public class WirelessLCDSystem implements ActionListener,
 //        ADXL345[5] = 0x00;
     }
 
-    public JPanel createPane() {
+    public JPanel createPane() throws IOException {
         // create top-level pane
         topLevelPane = new JPanel(new BorderLayout());
 
@@ -417,14 +407,26 @@ public class WirelessLCDSystem implements ActionListener,
         // first create top half pane
         JPanel topHalf = new JPanel();
         topHalf.setLayout(new BoxLayout(topHalf, BoxLayout.LINE_AXIS));
+        cameraLoading.setEnabled(false);
         cameraLoading.addActionListener((ActionEvent e) -> {
             cameraLoading.setEnabled(false);
+            addrListForCamera.setEnabled(false);
             topLevelPane.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+            // refuse allow other type of data except camera data
+            try {
+                serialOut.write(DATA_REFUSE, 0, DATA_REFUSE.length);
+                // then you should send the camera data request
+                // get the address and send the request
+                sendCameraDataRequst();
+            } catch (IOException ex) {
+                Logger.getLogger(WirelessLCDSystem.class.getName()).log(Level.SEVERE, null, ex);
+            }
         });
         topHalf.add(cameraLoading);
         topHalf.add(Box.createRigidArea(new Dimension(100, 0)));
         addrListForCamera = new JComboBox();
         addrListForCamera.addItem("NULL");
+        addrListForCamera.setEnabled(false);
         topHalf.add(addrListForCamera);
         topHalf.setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3));
         
@@ -602,7 +604,7 @@ public class WirelessLCDSystem implements ActionListener,
         return graphicPane;
     }
 
-    private JPanel createPicturePane(){
+    private JPanel createPicturePane() throws IOException{
         // create a contaner
         image = new ImagePane();
         // size the panel
@@ -1061,6 +1063,44 @@ public class WirelessLCDSystem implements ActionListener,
         addr[0] = (byte)(Integer.parseInt(str1, 16)&0xFF);
         addr[1] = (byte)(Integer.parseInt(str2, 16)&0xFF);
     }
+
+    private void sendCameraDataRequst() throws IOException {
+        // get the address
+        ByteArrayOutputStream cameraReq = new ByteArrayOutputStream(7);
+        
+        // write start value
+        cameraReq.write(0xFE);
+        
+        // write data len 0
+        cameraReq.write(0x00);
+        
+        // wite command
+        cameraReq.write(UINT32_LOW(IMAGE_REQ_CMD));
+        cameraReq.write(UINT32_HIGH(IMAGE_REQ_CMD));
+
+        // fill the address
+        String addr = CameraAddressList.get(
+                addrListForCamera.getSelectedIndex()).
+                substring(2);
+        // then get the bytes
+        byte[] addrBytes = new byte[2];
+        StringToHexBytes(addr, addrBytes);
+        cameraReq.write(addrBytes, 1, 1);
+        cameraReq.write(addrBytes, 0, 1);
+
+        // Fill the data
+        // no data for camera request
+        // see before the len is zero
+
+        // Fill FCS
+        cameraReq.write(calcuFCS(cameraReq.toByteArray(), 5));
+
+        // use the output stream to send the buffer
+        serialOut.write(cameraReq.toByteArray());
+
+        // updata the txCounter
+        txCounter += 7;    
+    }
     
     // use a thread to read data
     class SerialReader implements Runnable{
@@ -1244,23 +1284,17 @@ public class WirelessLCDSystem implements ActionListener,
                 case CAMERA_START_CMD:
                     if(flag){
                         // open the file and delete all data
-                        // two temp file buffer
-                        if(1 == tempFilePointer){
-                            fileWriter = Files.newBufferedWriter(colorHex1,
+                        fileWriter = Files.newOutputStream(newImage,
                                     StandardOpenOption.CREATE,
                                     StandardOpenOption.TRUNCATE_EXISTING);
-                        }else{
-                            fileWriter = Files.newBufferedWriter(colorHex2,
-                                    StandardOpenOption.CREATE,
-                                    StandardOpenOption.TRUNCATE_EXISTING);
-                        }
                         // update message
                         message.append("start to receive new image...\n");
                     }else{
                         // do nothing
+                        updateCameraControlPane();
                         
                         // update message
-                        message.append("waiting start signal of new image...\n");
+                        message.append("camera ack fails...\n");
                     }
                 break;
                 case CAMERA_DATA_CMD:
@@ -1268,69 +1302,44 @@ public class WirelessLCDSystem implements ActionListener,
                        // append to the file 
                        // check if we have received 153600 bytes 
                        // if not, just receive bytes and write to colorHex file
-                       if(colorTotalBytes != counter){
+                       if(colorTotalBytes < receivedImageBytes){
                            // the content start at pointer 5
                            // the length of the content saved in data[0]
                            // the first data of the data content is sequence 
                            // should be ignore
                            
-                           //fileWriter.write(Arrays.toString(data), 6, data[0]-1);
+                           fileWriter.write(data, 6, data[0]-1);
 
                            //fileWriter.write(data, 6, data[0]-1);
                            // update the counter
                            // data[0] must be a number between 0 ~ 255
-                           counter += (int)data[0]-1;
+                           receivedImageBytes += (int)data[0]-1;
+                           
+                           // update the program bar
+                           cameraWaiting.setValue(receivedImageBytes);
                        }
                        else{
                            // close the hex file writer
                            fileWriter.close();
                            // counter reset
-                           counter = 0;
-                           // pack the hex and make a bmp file
-                           if (1 == tempFilePointer) {
-                               // pack buffer 1
-                               // here use thread
-                               (new Runnable() {
-                                   @Override
-                                   public void run() {
-//                                       try {
-//                                           //packAndBuildBmpFile(colorHex1, bitMapFile);
-//                                       } catch (IOException ex) {
-//                                           Logger.getLogger(WirelessLCDSystem.class.getName()).log(Level.SEVERE, null, ex);
-//                                       }
-                                   }
-                               }).run();
-                               // notify the program to use buffer 2
-                               tempFilePointer = 2;
-                           } else {
-                               // pack buffer 2
-                               // use thread here
-                               (new Runnable() {
-                                   @Override
-                                   public void run() {
-                                       try {
-                                           packAndBuildBmpFile(colorHex2, bitMapFile);
-                                       } catch (IOException ex) {
-                                           Logger.getLogger(WirelessLCDSystem.class.getName()).log(Level.SEVERE, null, ex);
-                                       }
-                                   }
-                               }).run();
-                               // notify the program to use buffer 1
-                               tempFilePointer = 1;
-                           }
+                           receivedImageBytes = 0;
+                           // update the program bar
+                           cameraWaiting.setValue(receivedImageBytes);
+                           // add to the label with the new image
+                           image.setImageSource(newImage.toString());
+                           // repain to show instantly
+                           image.repaint();
+                           // update UI
+                           updateCameraControlPane();
+                           // message
+                           message.append("receive new image successfully\n");
                        }
-                    }else{
+                   }else{
                        // destory the file, wait another start signal
-                        if (1 == tempFilePointer) {
-                            if (Files.exists(colorHex1)) {
-                                Files.delete(colorHex1);
-                            }
-                        } else {
-                            if (Files.exists(colorHex2)) {
-                                Files.delete(colorHex2);
-                            }
-                        }
-                        message.append("discard previous image data\n");
+                       fileWriter.close();
+                       // 
+                       
+                       message.append("discard previous image data\n");
                     }
                 break;
                 case VIBRATE_DATA_CMD:
@@ -1359,9 +1368,11 @@ public class WirelessLCDSystem implements ActionListener,
                         start.setEnabled(false);
                         send.setEnabled(true);
                         stop.setEnabled(true);
+                        cameraLoading.setEnabled(true);
 
                         // list enable
                         addrListForLcd.setEnabled(true);
+                        addrListForCamera.setEnabled(true);
                         comList.setEditable(false);
                         baudrateList.setEditable(false);
                         
@@ -1390,6 +1401,25 @@ public class WirelessLCDSystem implements ActionListener,
              // repaint
              image.repaint();
         }// end methods
+
+        private void updateCameraControlPane() throws IOException {
+            // stop receive data
+            // and notify the receive error
+            // here enable receive data
+            serialOut.write(DATA_ALLOW, 0, DATA_ALLOW.length);
+
+            // set the prograss value
+            cameraWaiting.setValue(0);
+            
+            // set cursor null
+            topLevelPane.setCursor(null);
+            
+            // enable the camera address choose
+            cameraLoading.setEnabled(true);
+            
+            // enable the address list choose
+            addrListForCamera.setEnabled(true);
+        }
         
     }// end class
     
@@ -1524,7 +1554,11 @@ public class WirelessLCDSystem implements ActionListener,
                     
                     // clear the message log
                     message.setText("");
-                } catch (NoSuchPortException | PortInUseException | UnsupportedCommOperationException | IOException | TooManyListenersException ex) {
+                } catch (NoSuchPortException 
+                        | PortInUseException 
+                        | UnsupportedCommOperationException 
+                        | IOException 
+                        | TooManyListenersException ex) {
                     Logger.getLogger(WirelessLCDSystem.class.getName()).log(Level.SEVERE, null, ex);
                 }
                 break;
@@ -1546,11 +1580,14 @@ public class WirelessLCDSystem implements ActionListener,
                 start.setEnabled(true);
                 send.setEnabled(false);
                 stop.setEnabled(false);
+                cameraLoading.setEnabled(false);
 
                 // enable or disable the combobox
                 addrListForLcd.setEnabled(false);
+                addrListForCamera.setEnabled(false);
                 comList.setEnabled(true);
                 baudrateList.setEnabled(true);
+                
                 
                 // clear the topology information
                 LCDAddressList.removeAll(LCDAddressList);
@@ -1561,6 +1598,11 @@ public class WirelessLCDSystem implements ActionListener,
                 canvas.repaint();               
                 // reset the topology root
                 topology.root = null;
+                // reset the visual pane
+                visualTool.clearAllData();
+                // clear buffer
+                Arrays.fill(ADXL345, (byte)0);
+                curve.repaint();
                 break;
         }
     }
@@ -1568,21 +1610,25 @@ public class WirelessLCDSystem implements ActionListener,
     // draw the image 
     class ImagePane extends JPanel{
         
-        private BufferedImage handler = null;
+        private Image img = null;
+        private final String defaultImage = "wtu.png";
+        
+        public ImagePane() throws IOException{
+           java.net.URL imageUrl = WirelessLCDSystem.class.getResource("./resource/"+defaultImage);
+           img = ImageIO.read(imageUrl);
+        }
+        
+        public void setImageSource(String image_) throws IOException{
+           java.net.URL imageUrl = WirelessLCDSystem.class.getResource("./resource/"+image_);
+           img = ImageIO.read(imageUrl);
+        }
         
         @Override
         protected void paintComponent(Graphics g) {
             // inherited from JPanel
             super.paintComponent(g);
-            try {
-                // read the image
-                handler = ImageIO.read(new File(bitMapFile.toUri()));
-                // draw the image
-                g.drawImage(handler, 15, 15, null);
-
-            } catch (IOException ex) {
-                Logger.getLogger(WirelessLCDSystem.class.getName()).log(Level.SEVERE, null, ex);
-            }
+            // draw the image
+            g.drawImage(img, 15, 15, null);
         }
         
     }
@@ -1996,7 +2042,7 @@ class WelcomeLogo extends SwingWorker<Void, BufferedImage>{
         return null;
     }
     
-    private void createAndShowMain() {
+    private void createAndShowMain() throws IOException {
         
         // Decorate the windows
         JFrame.setDefaultLookAndFeelDecorated(true);

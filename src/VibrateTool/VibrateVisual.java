@@ -84,6 +84,10 @@ public class VibrateVisual {
         this.canvasHeight = canvasHeight;
     }
     
+    public void clearAllData(){
+        storage.removeAllData();
+    }
+    
     public void setArea(int width, int height){
         setCanvasWidth(width);
         setCanvasHeight(height);
@@ -482,5 +486,10 @@ class FIFO{
         else{
             return new DataNode(0,0,0);
         }
+    }
+    
+    public void removeAllData(){
+        buffer.removeAll(buffer);
+        bufferPointer = 0;
     }
 }
