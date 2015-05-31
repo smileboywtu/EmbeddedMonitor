@@ -1671,7 +1671,7 @@ public class WirelessLCDSystem implements ActionListener,
             y = BUILD_UINT32(ADXL345[2], ADXL345[3]);
             z = BUILD_UINT32(ADXL345[4], ADXL345[5]);
             // use vibrate visual tool to draw this
-            visualTool.drawVisualWave(x%60, y%60, z%60);
+            visualTool.drawVisualWave(x/1000%60, y/1000%60, z/1000%60);
         }// end method
         
     }// end class
