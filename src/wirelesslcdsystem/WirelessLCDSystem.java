@@ -235,6 +235,7 @@ public class WirelessLCDSystem implements ActionListener,
     private String objectTypeSelected = "point";
     
     private JPanel cards = null;
+    private JComboBox shift = null;
     private final String TEXT = "Remote Screen Work With Text";
     private final String GRAPH = "Remote Screen Work With Graph";
     private final String PICTURE = "Remote Camera Control";
@@ -364,11 +365,14 @@ public class WirelessLCDSystem implements ActionListener,
         cards = new JPanel(new CardLayout());
         // use combo box to select
         JPanel comboPane = new JPanel();
-        JComboBox shift = new JComboBox();
+        shift = new JComboBox();
         shift.setEditable(false);
         shift.addItem(TEXT);
         shift.addItem(GRAPH);
         shift.addItem(PICTURE);
+        // disable the cards selected initially
+        shift.setEnabled(false);
+        
         comboPane.add(shift);
         
         comboPane.setBorder(
@@ -380,6 +384,13 @@ public class WirelessLCDSystem implements ActionListener,
         shift.addItemListener((ItemEvent e) -> {
             CardLayout cl = (CardLayout)(cards.getLayout());
             itemSelected = (String)e.getItem();
+            if(TEXT.equals(itemSelected) || GRAPH.equals(itemSelected)){
+                send.setEnabled(true);
+                addrListForLcd.setEnabled(true);
+            }else{
+                send.setEnabled(false);
+                addrListForLcd.setEnabled(false); 
+            }
             cl.show(cards, itemSelected);
         });
         
@@ -387,7 +398,7 @@ public class WirelessLCDSystem implements ActionListener,
         cards.add(createTextPane(), TEXT);
         cards.add(createLcdGraphicsPane(), GRAPH);
         cards.add(createCameraControlPane(), PICTURE);
-        
+   
         // set again
         itemSelected = TEXT;
         
@@ -1376,6 +1387,9 @@ public class WirelessLCDSystem implements ActionListener,
                         comList.setEditable(false);
                         baudrateList.setEditable(false);
                         
+                        // enable cards
+                        shift.setEnabled(true);
+                        
                         // update message
                         message.append("Coordinator ACK\n");
                     }
@@ -1588,6 +1602,8 @@ public class WirelessLCDSystem implements ActionListener,
                 comList.setEnabled(true);
                 baudrateList.setEnabled(true);
                 
+                // disable card select
+                shift.setEnabled(false);
                 
                 // clear the topology information
                 LCDAddressList.removeAll(LCDAddressList);
