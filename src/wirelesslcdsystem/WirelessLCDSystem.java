@@ -146,7 +146,11 @@ public class WirelessLCDSystem implements ActionListener,
     private final int GRAPHICS_CMD = 0x000D;
     
     // IMAGE
-    private final int IMAGE_REQ_CMD = 0x000C;
+    //private final int IMAGE_REQ_CMD = 0x000C;
+    
+    // DATA Allow OR Refuse
+//    private final int DATA_ALLOW = 0x000E;
+//    private final int DATA_REFUSE = 0x000F;
     
     // DEVICE TYPE
     private final int COORDINATOR = 0x0001;
@@ -161,7 +165,25 @@ public class WirelessLCDSystem implements ActionListener,
         (byte) 0x00, (byte) 0x00,
         (byte) 0x00, (byte) 0x00,
         (byte) 0x00};
-
+    // Data allow
+    private final byte[] DATA_ALLOW = {
+        (byte) 0xFE, (byte) 0x00,
+        (byte) 0x00, (byte) 0x00,
+        (byte) 0x0E, (byte) 0x00,
+        (byte) 0x00};
+    // Data refuse
+    private final byte[] DATA_REFUSE = {
+        (byte) 0xFE, (byte) 0x00,
+        (byte) 0x00, (byte) 0x00,
+        (byte) 0x0F, (byte) 0x00,
+        (byte) 0x00};
+    // Image request
+    private final byte[] IMAGE_REQ = {
+        (byte) 0xFE, (byte) 0x00,
+        (byte) 0x00, (byte) 0x00,
+        (byte) 0x0C, (byte) 0x00,
+        (byte) 0x00};
+    
     // Command
     private final String STARTCOMMAND = "START";
     private final String SENDCOMMAND = "SEND";
