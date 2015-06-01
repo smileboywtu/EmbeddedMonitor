@@ -265,12 +265,13 @@ public class WirelessLCDSystem implements ActionListener,
     // files to read and write
     private int receivedImageBytes = 0;
     private OutputStream fileWriter = null;
-    private final Path newImage = Paths.get("./src/image/camera.bmp");
+    private final String newImage = "camera.jpg";
     
     // params for the bmp file
     private final int imageHeight = 240;
     private final int imageWidth  = 320;
-    private final int colorTotalBytes = 153600;
+    private int colorTotalBytes = 0;        // this will set by the start frame
+                                            // and reset when received done
 
     // Buffer to save the data
     private InputStream serialIn = null;
@@ -445,6 +446,7 @@ public class WirelessLCDSystem implements ActionListener,
         JPanel bottomHalf = new JPanel(new BorderLayout());
         bottomHalf.add(new JSeparator(JSeparator.HORIZONTAL), BorderLayout.PAGE_START);
         cameraWaiting.setMaximum(0);
+        // you should init this every time you start to receive a new image
         cameraWaiting.setMaximum(153600);
         cameraWaiting.setValue(0);
         cameraWaiting.setStringPainted(true);
@@ -1077,17 +1079,17 @@ public class WirelessLCDSystem implements ActionListener,
 
     private void sendCameraDataRequst() throws IOException {
         // get the address
-        ByteArrayOutputStream cameraReq = new ByteArrayOutputStream(7);
+        buffer = new ByteArrayOutputStream(7);
         
         // write start value
-        cameraReq.write(0xFE);
+        buffer.write(SOF_VALUE);
         
         // write data len 0
-        cameraReq.write(0x00);
+        buffer.write(0);
         
         // wite command
-        cameraReq.write(UINT32_LOW(IMAGE_REQ_CMD));
-        cameraReq.write(UINT32_HIGH(IMAGE_REQ_CMD));
+        buffer.write(UINT32_LOW(IMAGE_REQ_CMD));
+        buffer.write(UINT32_HIGH(IMAGE_REQ_CMD));
 
         // fill the address
         String addr = CameraAddressList.get(
@@ -1096,21 +1098,30 @@ public class WirelessLCDSystem implements ActionListener,
         // then get the bytes
         byte[] addrBytes = new byte[2];
         StringToHexBytes(addr, addrBytes);
-        cameraReq.write(addrBytes, 1, 1);
-        cameraReq.write(addrBytes, 0, 1);
+        buffer.write(addrBytes, 1, 1);
+        buffer.write(addrBytes, 0, 1);
 
         // Fill the data
         // no data for camera request
         // see before the len is zero
 
         // Fill FCS
-        cameraReq.write(calcuFCS(cameraReq.toByteArray(), 5));
+        buffer.write(calcuFCS(buffer.toByteArray(), 5));
 
         // use the output stream to send the buffer
-        serialOut.write(cameraReq.toByteArray());
-
+        serialOut.write(buffer.toByteArray());
+        
         // updata the txCounter
-        txCounter += 7;    
+        txCounter += 7; 
+
+        //System.out.println(Arrays.toString(buffer.toByteArray()));
+        message.append("[ " + getHexString(buffer.toByteArray()) + "]");
+        message.append("\n");
+
+        // show use tx
+        //System.out.println("You hava send: " + txCounter);
+        message.append("You hava send: " + txCounter);
+        message.append("\n");   
     }
     
     // use a thread to read data
@@ -1295,10 +1306,23 @@ public class WirelessLCDSystem implements ActionListener,
                 case CAMERA_START_CMD:
                     if(flag){
                         // open the file and delete all data
-                        fileWriter = Files.newOutputStream(newImage,
+                        fileWriter = Files.newOutputStream(Paths.get("./src/wirelesslcdsystem/resource/"+newImage),
                                     StandardOpenOption.CREATE,
                                     StandardOpenOption.TRUNCATE_EXISTING);
+                        // JPEG Specific FF D8 start with a times of 8 bytes 
+                        // data
+//                        fileWriter.write(0xFF);
+//                        fileWriter.write(0xD8);
+                        
+                        // set the colortotalbits
+                        /*
+                           | len  |  cmd1  | cmd2  | addr1 | addr2 | data...|
+                        */
+                        colorTotalBytes = BUILD_UINT32(data[5], data[6]);
+                        // set the progress bar the maximum value
+                        cameraWaiting.setMaximum(colorTotalBytes);
                         // update message
+                        message.append("the new image has "+colorTotalBytes+" bytes.\n");
                         message.append("start to receive new image...\n");
                     }else{
                         // do nothing
@@ -1313,42 +1337,60 @@ public class WirelessLCDSystem implements ActionListener,
                        // append to the file 
                        // check if we have received 153600 bytes 
                        // if not, just receive bytes and write to colorHex file
-                       if(colorTotalBytes < receivedImageBytes){
+                        
+//                       if(receivedImageBytes < colorTotalBytes){
+                        
                            // the content start at pointer 5
                            // the length of the content saved in data[0]
                            // the first data of the data content is sequence 
                            // should be ignore
+                           // now with new way to get camera data 
+                           // so just feel free to read the data from offset = 5
+                        
+                           // write content
+                           fileWriter.write(data, 5, data[0]);
                            
-                           fileWriter.write(data, 6, data[0]-1);
-
                            //fileWriter.write(data, 6, data[0]-1);
                            // update the counter
                            // data[0] must be a number between 0 ~ 255
-                           receivedImageBytes += (int)data[0]-1;
+                           receivedImageBytes += data[0];
                            
                            // update the program bar
                            cameraWaiting.setValue(receivedImageBytes);
-                       }
-                       else{
-                           // close the hex file writer
-                           fileWriter.close();
-                           // counter reset
-                           receivedImageBytes = 0;
-                           // update the program bar
-                           cameraWaiting.setValue(receivedImageBytes);
-                           // add to the label with the new image
-                           image.setImageSource(newImage.toString());
-                           // repain to show instantly
-                           image.repaint();
-                           // update UI
-                           updateCameraControlPane();
-                           // message
-                           message.append("receive new image successfully\n");
+//                       }
+//                       else{
+                           if(receivedImageBytes >= colorTotalBytes){
+                                                          
+                                // JPEG Specific FF D9 end with a times of 8 bytes
+                               // data
+//                               fileWriter.write(0xFF);
+//                               fileWriter.write(0xD9);
+                               
+                               // close the hex file writer
+                               fileWriter.close();
+                               message.append("Test: received image bytes is "+receivedImageBytes);
+                               message.append("\n");
+                               
+                               // counter reset
+                               receivedImageBytes = 0;
+                               // color total bit reset
+                               colorTotalBytes = 0;
+                               // update the program bar
+                               cameraWaiting.setValue(receivedImageBytes);
+                               // add to the label with the new image
+                               image.setImageSource(newImage);
+                               // repain to show instantly
+                               image.repaint();
+                               // update UI
+                               updateCameraControlPane();
+                               // message
+                               message.append("receive new image successfully\n");
                        }
                    }else{
                        // destory the file, wait another start signal
                        fileWriter.close();
-                       // 
+                       // stop the process bar 
+                       updateCameraControlPane();
                        
                        message.append("discard previous image data\n");
                     }
@@ -1595,6 +1637,9 @@ public class WirelessLCDSystem implements ActionListener,
                 send.setEnabled(false);
                 stop.setEnabled(false);
                 cameraLoading.setEnabled(false);
+                
+                // progress bar set zero
+                cameraWaiting.setValue(0);
 
                 // enable or disable the combobox
                 addrListForLcd.setEnabled(false);
@@ -1604,6 +1649,7 @@ public class WirelessLCDSystem implements ActionListener,
                 
                 // disable card select
                 shift.setEnabled(false);
+                topLevelPane.setCursor(null);
                 
                 // clear the topology information
                 LCDAddressList.removeAll(LCDAddressList);
@@ -1619,6 +1665,12 @@ public class WirelessLCDSystem implements ActionListener,
                 // clear buffer
                 Arrays.fill(ADXL345, (byte)0);
                 curve.repaint();
+                // clear message and reset the counter
+                message.removeAll();
+                rxCounter = 0;
+                txCounter = 0;
+                // set the color counter to zero
+                colorTotalBytes = 0;
                 break;
         }
     }
