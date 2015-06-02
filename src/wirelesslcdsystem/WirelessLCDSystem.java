@@ -76,14 +76,19 @@ import java.awt.event.ItemEvent;
 import java.awt.geom.GeneralPath;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.file.Files;
+import java.net.URISyntaxException;
+import java.nio.file.FileSystems;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
+import java.nio.file.StandardWatchEventKinds;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchKey;
+import java.nio.file.WatchService;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -264,7 +269,7 @@ public class WirelessLCDSystem implements ActionListener,
 
     // files to read and write
     private int receivedImageBytes = 0;
-    private OutputStream fileWriter = null;
+    private FileOutputStream fileWriter = null;
     private final String newImage = "camera.jpg";
     
     // params for the bmp file
@@ -293,6 +298,7 @@ public class WirelessLCDSystem implements ActionListener,
     
     // pane for picture
     private ImagePane image = null;
+//    private FileWatcher wf = null;
 
     // save the topology
     private final TopologyTree topology = new TopologyTree();
@@ -325,7 +331,7 @@ public class WirelessLCDSystem implements ActionListener,
 //        ADXL345[5] = 0x00;
     }
 
-    public JPanel createPane() throws IOException {
+    public JPanel createPane() throws IOException, URISyntaxException {
         // create top-level pane
         topLevelPane = new JPanel(new BorderLayout());
 
@@ -617,7 +623,7 @@ public class WirelessLCDSystem implements ActionListener,
         return graphicPane;
     }
 
-    private JPanel createPicturePane() throws IOException{
+    private JPanel createPicturePane() throws IOException, URISyntaxException{
         // create a contaner
         image = new ImagePane();
         // size the panel
@@ -625,6 +631,10 @@ public class WirelessLCDSystem implements ActionListener,
         image.setPreferredSize(area);
         // custom the background color
         image.setBackground(new Color(223, 239, 239));
+        // add file listener here
+//        wf = new FileWatcher(
+//            Paths.get("./src/wirelesslcdsystem/resource/"));
+        // where to start the thread?
         
         // content
         JPanel content = new JPanel();
@@ -1306,9 +1316,11 @@ public class WirelessLCDSystem implements ActionListener,
                 case CAMERA_START_CMD:
                     if(flag){
                         // open the file and delete all data
-                        fileWriter = Files.newOutputStream(Paths.get("./src/wirelesslcdsystem/resource/"+newImage),
-                                    StandardOpenOption.CREATE,
-                                    StandardOpenOption.TRUNCATE_EXISTING);
+//                        fileWriter = Files.newOutputStream(Paths.get("./src/wirelesslcdsystem/resource/"+newImage),
+//                                    StandardOpenOption.CREATE,
+//                                    StandardOpenOption.TRUNCATE_EXISTING);
+                        fileWriter = new FileOutputStream(
+                                new File("./src/wirelesslcdsystem/resource/"+newImage));
                         // JPEG Specific FF D8 start with a times of 8 bytes 
                         // data
 //                        fileWriter.write(0xFF);
@@ -1367,7 +1379,9 @@ public class WirelessLCDSystem implements ActionListener,
 //                               fileWriter.write(0xD9);
                                
                                // close the hex file writer
+                               fileWriter.flush();
                                fileWriter.close();
+                               fileWriter = null;
                                message.append("Test: received image bytes is "+receivedImageBytes);
                                message.append("\n");
                                
@@ -1377,10 +1391,12 @@ public class WirelessLCDSystem implements ActionListener,
                                colorTotalBytes = 0;
                                // update the program bar
                                cameraWaiting.setValue(receivedImageBytes);
-                               // add to the label with the new image
+                               // add to the label with the new image    
                                image.setImageSource(newImage);
                                // repain to show instantly
                                image.repaint();
+                               // use watch service to watch the file change
+                               
                                // update UI
                                updateCameraControlPane();
                                // message
@@ -1679,16 +1695,21 @@ public class WirelessLCDSystem implements ActionListener,
     class ImagePane extends JPanel{
         
         private Image img = null;
+        java.net.URL imageUrl = null;
         private final String defaultImage = "wtu.png";
         
         public ImagePane() throws IOException{
-           java.net.URL imageUrl = WirelessLCDSystem.class.getResource("./resource/"+defaultImage);
+            // update the resource first
+           imageUrl = new java.net.URL(WirelessLCDSystem.class.getResource("./resource/"+defaultImage).toString());
            img = ImageIO.read(imageUrl);
         }
         
         public void setImageSource(String image_) throws IOException{
-           java.net.URL imageUrl = WirelessLCDSystem.class.getResource("./resource/"+image_);
-           img = ImageIO.read(imageUrl);
+            // do not prefore one
+            imageUrl = new java.net.URL(WirelessLCDSystem.class.getResource("./resource/"+image_).toString());
+            // read image
+            img.flush();
+            img = ImageIO.read(imageUrl);
         }
         
         @Override
@@ -1698,7 +1719,6 @@ public class WirelessLCDSystem implements ActionListener,
             // draw the image
             g.drawImage(img, 15, 15, null);
         }
-        
     }
     
     // Curve pane
@@ -1815,6 +1835,64 @@ public class WirelessLCDSystem implements ActionListener,
         }
     }
 
+    class FileWatcher implements Runnable {
+
+        private Path file = null;
+        private WatchService ws = null;
+
+        public FileWatcher(Path path) throws IOException {
+            file = path;
+            // set the new watch service
+            ws = FileSystems.getDefault().newWatchService();
+            // add listener
+            file.register(ws, StandardWatchEventKinds.ENTRY_MODIFY);
+        }
+
+        // here use thread to poll the event
+        @Override
+        public void run() {
+            while (true) {
+                // wait for key to be signaled
+                WatchKey key;
+
+                try {
+                    key = ws.take();
+                } catch (InterruptedException x) {
+                    return;
+                }
+
+                key.pollEvents().stream().forEach((WatchEvent<?> event) -> {
+                    WatchEvent.Kind<?> kind = event.kind();                   
+                    // This key is registered only
+                    // for ENTRY_CREATE events,
+                    // but an OVERFLOW event can
+                    // occur regardless if events
+                    // are lost or discarded.
+                    if (!(kind == StandardWatchEventKinds.OVERFLOW)) {
+                        try {
+                            // deal with the file change and notice the pane to
+                            // redraw
+                            image.setImageSource(newImage);
+                            // repain to show instantly
+                            image.repaint();
+                        } catch (IOException ex) {
+                            Logger.getLogger(WirelessLCDSystem.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+                    }
+                });
+
+                // Reset the key -- this step is critical if you want to
+                // receive further watch events.  If the key is no longer valid,
+                // the directory is inaccessible so exit the loop.
+                boolean valid = key.reset();
+
+                if (!valid) {
+                    break;
+                }
+            }
+        }
+    }
+    
     // for pass the infromation between two  methods in swing worker
     class Infor {
 
@@ -2110,7 +2188,7 @@ class WelcomeLogo extends SwingWorker<Void, BufferedImage>{
         return null;
     }
     
-    private void createAndShowMain() throws IOException {
+    private void createAndShowMain() throws IOException, URISyntaxException {
         
         // Decorate the windows
         JFrame.setDefaultLookAndFeelDecorated(true);
