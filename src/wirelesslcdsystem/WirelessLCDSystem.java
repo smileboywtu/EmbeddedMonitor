@@ -202,7 +202,7 @@ public class WirelessLCDSystem implements ActionListener,
     private JPanel topLevelPane = null;
     
     // handler for topology and message status bar
-    private JPanel canvas = null;
+    private DrawPane canvas = null;
     private JTextArea message = null;
 
     // Value save
