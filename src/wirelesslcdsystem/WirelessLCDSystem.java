@@ -75,6 +75,7 @@ import java.awt.event.ActionListener;
 import java.awt.event.ItemEvent;
 import java.awt.geom.GeneralPath;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -269,8 +270,9 @@ public class WirelessLCDSystem implements ActionListener,
 
     // files to read and write
     private int receivedImageBytes = 0;
-    private FileOutputStream fileWriter = null;
-    private final String newImage = "camera.jpg";
+    private ByteArrayOutputStream jpgBuffer = null;
+//    private FileOutputStream fileWriter = null;
+//    private final String newImage = "camera.jpg";
     
     // params for the bmp file
     private final int imageHeight = 240;
@@ -1319,8 +1321,9 @@ public class WirelessLCDSystem implements ActionListener,
 //                        fileWriter = Files.newOutputStream(Paths.get("./src/wirelesslcdsystem/resource/"+newImage),
 //                                    StandardOpenOption.CREATE,
 //                                    StandardOpenOption.TRUNCATE_EXISTING);
-                        fileWriter = new FileOutputStream(
-                                new File("./src/wirelesslcdsystem/resource/"+newImage));
+//                        fileWriter = new FileOutputStream(
+//                                new File("./src/wirelesslcdsystem/resource/"+newImage));
+                        jpgBuffer = new ByteArrayOutputStream();    // this can auto increase
                         // JPEG Specific FF D8 start with a times of 8 bytes 
                         // data
 //                        fileWriter.write(0xFF);
@@ -1360,7 +1363,8 @@ public class WirelessLCDSystem implements ActionListener,
                            // so just feel free to read the data from offset = 5
                         
                            // write content
-                           fileWriter.write(data, 5, data[0]);
+//                           fileWriter.write(data, 5, data[0]);
+                           jpgBuffer.write(data, 5, data[0]);
                            
                            //fileWriter.write(data, 6, data[0]-1);
                            // update the counter
@@ -1379,9 +1383,17 @@ public class WirelessLCDSystem implements ActionListener,
 //                               fileWriter.write(0xD9);
                                
                                // close the hex file writer
-                               fileWriter.flush();
-                               fileWriter.close();
-                               fileWriter = null;
+//                               fileWriter.flush();
+//                               fileWriter.close();
+//                               fileWriter = null;
+                               // add to the label with the new image    
+                               image.setImageSource(jpgBuffer.toByteArray());
+                               // repain to show instantly
+                               image.repaint();
+                               // reset
+                               jpgBuffer.close();
+                               jpgBuffer = null;
+                               
                                message.append("Test: received image bytes is "+receivedImageBytes);
                                message.append("\n");
                                
@@ -1391,10 +1403,6 @@ public class WirelessLCDSystem implements ActionListener,
                                colorTotalBytes = 0;
                                // update the program bar
                                cameraWaiting.setValue(receivedImageBytes);
-                               // add to the label with the new image    
-                               image.setImageSource(newImage);
-                               // repain to show instantly
-                               image.repaint();
                                // use watch service to watch the file change
                                
                                // update UI
@@ -1404,7 +1412,7 @@ public class WirelessLCDSystem implements ActionListener,
                        }
                    }else{
                        // destory the file, wait another start signal
-                       fileWriter.close();
+//                       fileWriter.close();
                        // stop the process bar 
                        updateCameraControlPane();
                        
@@ -1694,22 +1702,18 @@ public class WirelessLCDSystem implements ActionListener,
     // draw the image 
     class ImagePane extends JPanel{
         
-        private Image img = null;
-        java.net.URL imageUrl = null;
+        private BufferedImage img = null;
         private final String defaultImage = "wtu.png";
         
         public ImagePane() throws IOException{
             // update the resource first
-           imageUrl = new java.net.URL(WirelessLCDSystem.class.getResource("./resource/"+defaultImage).toString());
+           java.net.URL imageUrl = new java.net.URL(WirelessLCDSystem.class.getResource("./resource/"+defaultImage).toString());
            img = ImageIO.read(imageUrl);
         }
         
-        public void setImageSource(String image_) throws IOException{
-            // do not prefore one
-            imageUrl = new java.net.URL(WirelessLCDSystem.class.getResource("./resource/"+image_).toString());
+        public void setImageSource(byte[] array) throws IOException{
             // read image
-            img.flush();
-            img = ImageIO.read(imageUrl);
+            img = ImageIO.read(new ByteArrayInputStream(array));
         }
         
         @Override
@@ -1768,6 +1772,8 @@ public class WirelessLCDSystem implements ActionListener,
                     // deal
                     if (null != p) {
                         // draw area
+                        // every time you draw the element 
+                        // you should use the max negtive x, and y offset
                         p.showElement(g);
                     }// end if
                 }// end for
@@ -1869,15 +1875,15 @@ public class WirelessLCDSystem implements ActionListener,
                     // occur regardless if events
                     // are lost or discarded.
                     if (!(kind == StandardWatchEventKinds.OVERFLOW)) {
-                        try {
-                            // deal with the file change and notice the pane to
-                            // redraw
-                            image.setImageSource(newImage);
-                            // repain to show instantly
-                            image.repaint();
-                        } catch (IOException ex) {
-                            Logger.getLogger(WirelessLCDSystem.class.getName()).log(Level.SEVERE, null, ex);
-                        }
+//                        try {
+//                            // deal with the file change and notice the pane to
+//                            // redraw
+//                            image.setImageSource(newImage);
+//                            // repain to show instantly
+//                            image.repaint();
+//                        } catch (IOException ex) {
+//                            Logger.getLogger(WirelessLCDSystem.class.getName()).log(Level.SEVERE, null, ex);
+//                        }
                     }
                 });
 
@@ -2441,11 +2447,20 @@ class TopologyElement {
     public String text1 = "";
     public String text2 = "";
     public Point location = null;
+    
+    // x, y prefix when needed
+    private int xPreOffset = 0;
+    private int yPreOffset = 0;
 
     public TopologyElement(String addr, String name, Point center) {
         text1 = addr;
         text2 = name;
         location = center;
+    }
+    
+    public void setPreOffset(int x, int y){
+        xPreOffset = x;
+        yPreOffset = y;
     }
 
     public void showElement(Graphics g) {
