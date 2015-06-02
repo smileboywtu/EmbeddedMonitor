@@ -77,9 +77,7 @@ import java.awt.geom.GeneralPath;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -1754,7 +1752,9 @@ public class WirelessLCDSystem implements ActionListener,
     
     // extend the JPanel
     class DrawPane extends JPanel {
-
+        
+        private int xOffset = 0;
+        
         @Override
         protected void paintComponent(Graphics g) {
             // inherited from JPanel
@@ -1774,7 +1774,7 @@ public class WirelessLCDSystem implements ActionListener,
                         // draw area
                         // every time you draw the element 
                         // you should use the max negtive x, and y offset
-                        p.showElement(g);
+                        p.showElement(g, xOffset);
                     }// end if
                 }// end for
                 for (int i = 0; i < topology.linkVector.size(); i++) {
@@ -1786,6 +1786,12 @@ public class WirelessLCDSystem implements ActionListener,
                 }
             }// end if
         }
+        
+        // set the offset
+        public void setXOffset(int x) {
+            xOffset = x;
+        }
+
     }
     
     class RadioButtonSelect implements ActionListener{
@@ -1823,6 +1829,9 @@ public class WirelessLCDSystem implements ActionListener,
             // resize the canvas
             int width = topology.maxPositiveXAxis - topology.maxNegativeXAxis;
             int height = topology.maxPositiveYAxis - topology.maxNegaticeYAxis;
+            
+            // set offset
+            canvas.setXOffset(Math.abs(topology.maxNegativeXAxis));
 
             // set size
             canvas.setPreferredSize(new Dimension(width, height));
@@ -2463,11 +2472,11 @@ class TopologyElement {
         yPreOffset = y;
     }
 
-    public void showElement(Graphics g) {
+    public void showElement(Graphics g, int offset) {
         g.setColor(Color.green);
 
         // fill the rectangle
-        Rectangle rec = new Rectangle(location.x-25, location.y-25, 50, 50);
+        Rectangle rec = new Rectangle(location.x-25+offset, location.y-25+offset, 50, 50);
         g.fillOval(rec.x, rec.y, rec.width, rec.height);
 
         // draw name and address
