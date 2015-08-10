@@ -1,0 +1,2 @@
+MongoTable.MapTableModule
+MongoTable.RoomEditor
