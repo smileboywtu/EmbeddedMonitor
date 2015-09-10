@@ -32,7 +32,7 @@ this Monitor is developed with the Java Swing, so you can run this program free 
 	# you have to install java run time environment.
 	# make sure you have install the mongo DB database.
 
-Here I will told you the special function of this project.
+Here I will tell you the special function of this project.
 
 ### About the LCD
 	
