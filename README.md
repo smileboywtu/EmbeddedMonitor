@@ -1,3 +1,7 @@
 # Embedded-Monitor
-this monitor is design for the zigbee network
 
+> This monitor is design for the ZigBee network.
+
+# Description
+
+![Alt text](./Pictures/wholeview.png "wholeview")
