@@ -28,7 +28,7 @@ this Monitor is developed with the Java Swing, so you can run this program free 
 	java -jar wirelessLCDSystem.jar
 	
 	# before you run this program make sure you have download this project
-	# and make sure you find the jar package in the /disk directory.
+	# and make sure you find the jar package in the /dist directory.
 	# you have to install java run time environment.
 	# make sure you have install the mongo DB database.
 
